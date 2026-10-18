@@ -8,6 +8,8 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import java.awt.*;
 import java.awt.geom.Arc2D;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Path2D;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -23,12 +25,12 @@ public class DashboardView extends JPanel {
     public static final String BENEFICIARIES = "Beneficiaries";
     public static final String REPORTS = "Reports";
     public static final String ADD = "AddDonation";
+    public static final String DETAILS = "DonationDetails";
     public static final String[] NAV_PAGES = {HOME, DONATIONS, INVENTORY, COLLECTION, DISTRIBUTION, BENEFICIARIES, REPORTS};
 
-    private static final String[] DONATION_COLUMNS = {"ID", "Food", "Type", "Quantity", "Donor", "Pickup Location", "Deadline", "Status"};
-
+    private static final String LOGOUT = "Logout";
     private final Map<String, JButton> navButtons = new LinkedHashMap<>();
-    private final JButton logoutButton = navButton("Logout");
+    private final JButton logoutButton = navButton(LOGOUT, new NavIcon(LOGOUT, new Color(0xFF3B30)));
     private final CardLayout cards = new CardLayout();
     private final JPanel content = new JPanel(cards);
 
@@ -45,10 +47,14 @@ public class DashboardView extends JPanel {
     private final JButton recordDistributionButton = quickButton("Record Distribution");
     private final JButton viewBeneficiariesButton = quickButton("View Beneficiaries");
 
-    private final TablePage donationsPage = new TablePage("Donations", "All food donations recorded in the system.", DONATION_COLUMNS);
-    private final TablePage inventoryPage = new TablePage("Inventory", "Food currently available or collected, not yet distributed.", DONATION_COLUMNS);
-    private final TablePage collectionPage = new TablePage("Collection", "Approve donations and mark them as collected. Select a row first.", DONATION_COLUMNS);
-    private final TablePage distributionPage = new TablePage("Distribution", "Record distribution of collected food. Select a row first.", DONATION_COLUMNS);
+    // pages that follow the mockups
+    private final DonationsView donationsView = new DonationsView();
+    private final DonationDetailsView detailsView = new DonationDetailsView();
+    private final CollectionView collectionView = new CollectionView();
+    private final DistributionView distributionView = new DistributionView();
+    private final InventoryView inventoryView = new InventoryView();
+
+    // pages that still use the simple table
     private final TablePage beneficiariesPage = new TablePage("Beneficiaries", "Registered beneficiaries.", new String[]{"Name", "Email", "Contact Number"});
     private final JTextArea reportArea = new JTextArea();
     private final AddDonationView addDonationView = new AddDonationView();
@@ -59,10 +65,11 @@ public class DashboardView extends JPanel {
 
         content.setBackground(Color.WHITE);
         content.add(buildHome(), HOME);
-        content.add(donationsPage, DONATIONS);
-        content.add(inventoryPage, INVENTORY);
-        content.add(collectionPage, COLLECTION);
-        content.add(distributionPage, DISTRIBUTION);
+        content.add(donationsView, DONATIONS);
+        content.add(detailsView, DETAILS);
+        content.add(inventoryView, INVENTORY);
+        content.add(collectionView, COLLECTION);
+        content.add(distributionView, DISTRIBUTION);
         content.add(beneficiariesPage, BENEFICIARIES);
         content.add(buildReports(), REPORTS);
         content.add(addDonationView, ADD);
@@ -75,36 +82,42 @@ public class DashboardView extends JPanel {
         JPanel side = new JPanel();
         side.setLayout(new BoxLayout(side, BoxLayout.Y_AXIS));
         side.setBackground(Theme.GREEN);
-        side.setPreferredSize(new Dimension(230, 0));
-        side.setBorder(new EmptyBorder(22, 0, 20, 0));
+        side.setPreferredSize(new Dimension(250, 0));
+        // thin light strip on the left edge, like the mockup
+        side.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 14, 0, 0, new Color(0x8DB89E)),
+                new EmptyBorder(22, 0, 20, 0)));
 
-        JLabel logo = Theme.label("NutriLink", 26, Font.BOLD, Color.WHITE);
-        logo.setBorder(new EmptyBorder(0, 24, 26, 0));
+        JLabel logo = new JLabel("NutriLink", new LeafIcon(), SwingConstants.LEFT);
+        logo.setFont(Theme.font(Font.BOLD, 26));
+        logo.setForeground(Color.WHITE);
+        logo.setIconTextGap(8);
+        logo.setBorder(new EmptyBorder(0, 20, 26, 0));
         logo.setAlignmentX(Component.LEFT_ALIGNMENT);
         side.add(logo);
 
         for (String page : NAV_PAGES) {
-            JButton b = navButton(page);
+            JButton b = navButton(page, new NavIcon(page, Color.WHITE));
             navButtons.put(page, b);
             side.add(b);
             side.add(Box.createVerticalStrut(4));
         }
         side.add(Box.createVerticalGlue());
-        logoutButton.setForeground(new Color(0xFFD0D0));
         side.add(logoutButton);
         return side;
     }
 
-    private static JButton navButton(String text) {
-        JButton b = new JButton(text);
+    private static JButton navButton(String text, Icon icon) {
+        JButton b = new JButton(text, icon);
         b.setFont(Theme.font(Font.PLAIN, 16));
         b.setForeground(Color.WHITE);
+        b.setIconTextGap(18);
         b.setHorizontalAlignment(SwingConstants.LEFT);
         b.setContentAreaFilled(false);
         b.setOpaque(false);
         b.setFocusPainted(false);
-        b.setBorder(new EmptyBorder(10, 24, 10, 10));
-        b.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+        b.setBorder(new EmptyBorder(10, 20, 10, 10));
+        b.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
         b.setAlignmentX(Component.LEFT_ALIGNMENT);
         b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         return b;
@@ -219,7 +232,8 @@ public class DashboardView extends JPanel {
     // ---------- updating what is shown ----------
     public void showPage(String page) {
         cards.show(content, page);
-        String active = page.equals(ADD) ? DONATIONS : page;
+        // Add Donation and the details page belong to the Donations menu item
+        String active = (page.equals(ADD) || page.equals(DETAILS)) ? DONATIONS : page;
         for (Map.Entry<String, JButton> e : navButtons.entrySet()) {
             boolean selected = e.getKey().equals(active);
             e.getValue().setBackground(Theme.DARK_GREEN);
@@ -255,7 +269,7 @@ public class DashboardView extends JPanel {
             names.add(Theme.label(d.getQuantityText(), 12, Font.PLAIN, Theme.MUTED));
             JPanel middle = new JPanel(new GridBagLayout());
             middle.setOpaque(false);
-            middle.add(Theme.pill(d.getStatus()));
+            middle.add(new StatusPill(d.getStatus()));
 
             row.add(names, BorderLayout.WEST);
             row.add(middle, BorderLayout.CENTER);
@@ -268,24 +282,16 @@ public class DashboardView extends JPanel {
         recentList.repaint();
     }
 
+    /**
+     * Fills the Inventory and Beneficiaries pages. Donations, Collection and Distribution have
+     * their own views (filled by the controller), so those parameters are not used here.
+     */
     public void setTables(List<Donation> all, List<Donation> inventory, List<Donation> collection,
                           List<Donation> distribution, List<? extends User> beneficiaries) {
-        donationsPage.setRows(toRows(all));
-        inventoryPage.setRows(toRows(inventory));
-        collectionPage.setRows(toRows(collection));
-        distributionPage.setRows(toRows(distribution));
+        inventoryView.setItems(inventory);
         List<Object[]> rows = new ArrayList<>();
         for (User u : beneficiaries) rows.add(new Object[]{u.getFullName(), u.getEmail(), u.getContactNumber()});
         beneficiariesPage.setRows(rows);
-    }
-
-    private List<Object[]> toRows(List<Donation> list) {
-        List<Object[]> rows = new ArrayList<>();
-        for (Donation d : list) {
-            rows.add(new Object[]{d.getId(), d.getFoodName(), d.getDonationType(), d.getQuantityText(),
-                    d.getDonorName(), d.getPickupLocation(), d.getDeadlineText(), d.getStatus()});
-        }
-        return rows;
     }
 
     public void setReport(String text) { reportArea.setText(text); reportArea.setCaretPosition(0); }
@@ -300,11 +306,15 @@ public class DashboardView extends JPanel {
     public JButton getManageCollectionButton() { return manageCollectionButton; }
     public JButton getRecordDistributionButton() { return recordDistributionButton; }
     public JButton getViewBeneficiariesButton() { return viewBeneficiariesButton; }
-    public TablePage getCollectionPage() { return collectionPage; }
-    public TablePage getDistributionPage() { return distributionPage; }
     public AddDonationView getAddDonationView() { return addDonationView; }
+    public DonationsView getDonationsView() { return donationsView; }
+    public DonationDetailsView getDetailsView() { return detailsView; }
+    public CollectionView getCollectionView() { return collectionView; }
+    public DistributionView getDistributionView() { return distributionView; }
 
-    /** Simple bell drawn with Java2D (no image file needed). */
+    // ---------- small drawn icons (no image files needed) ----------
+
+    /** Simple bell drawn with Java2D. */
     private static class BellIcon implements Icon {
         @Override public void paintIcon(Component c, Graphics g, int x, int y) {
             Graphics2D g2 = (Graphics2D) g.create();
@@ -320,5 +330,110 @@ public class DashboardView extends JPanel {
         }
         @Override public int getIconWidth() { return 30; }
         @Override public int getIconHeight() { return 32; }
+    }
+
+    /** White leaf for the NutriLink logo. */
+    private static class LeafIcon implements Icon {
+        @Override public void paintIcon(Component c, Graphics g, int x, int y) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.translate(x, y);
+            Path2D leaf = new Path2D.Double();
+            leaf.moveTo(3, 26);
+            leaf.curveTo(0, 12, 10, 2, 25, 2);
+            leaf.curveTo(26, 16, 16, 27, 3, 26);
+            g2.setColor(Color.WHITE);
+            g2.fill(leaf);
+            g2.setColor(Theme.GREEN);
+            g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.drawLine(6, 23, 17, 12);
+            g2.dispose();
+        }
+        @Override public int getIconWidth() { return 28; }
+        @Override public int getIconHeight() { return 28; }
+    }
+
+    /** Outline icon for each sidebar item. Replace later with PNGs if you like. */
+    private static class NavIcon implements Icon {
+        private final String type;
+        private final Color color;
+
+        NavIcon(String type, Color color) {
+            this.type = type;
+            this.color = color;
+        }
+
+        @Override public void paintIcon(Component c, Graphics g, int x, int y) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.setColor(color);
+            g2.translate(x, y);
+            switch (type) {
+                case HOME -> {
+                    Path2D roof = new Path2D.Double();
+                    roof.moveTo(3, 13); roof.lineTo(14, 3); roof.lineTo(25, 13);
+                    g2.draw(roof);
+                    g2.drawRect(6, 13, 16, 12);
+                    g2.drawRect(11, 18, 6, 7);
+                }
+                case DONATIONS -> {
+                    g2.drawRect(4, 14, 20, 10);
+                    g2.drawLine(2, 14, 26, 14);
+                    Path2D heart = new Path2D.Double();
+                    heart.moveTo(14, 11);
+                    heart.curveTo(8, 8, 9, 2, 14, 5);
+                    heart.curveTo(19, 2, 20, 8, 14, 11);
+                    g2.draw(heart);
+                }
+                case INVENTORY -> {
+                    g2.drawRect(3, 3, 22, 22);
+                    g2.drawLine(3, 12, 25, 12);
+                    g2.drawLine(3, 19, 25, 19);
+                    g2.drawLine(14, 3, 14, 12);
+                }
+                case COLLECTION -> {
+                    Path2D cart = new Path2D.Double();
+                    cart.moveTo(2, 5); cart.lineTo(6, 5); cart.lineTo(9, 18); cart.lineTo(23, 18);
+                    cart.lineTo(25, 8); cart.lineTo(7, 8);
+                    g2.draw(cart);
+                    g2.draw(new Ellipse2D.Double(9, 21, 4, 4));
+                    g2.draw(new Ellipse2D.Double(19, 21, 4, 4));
+                }
+                case DISTRIBUTION -> {
+                    g2.draw(new Arc2D.Double(7, 3, 14, 14, 0, 180, Arc2D.OPEN));
+                    g2.drawLine(7, 10, 14, 25);
+                    g2.drawLine(21, 10, 14, 25);
+                    g2.draw(new Ellipse2D.Double(11.5, 7.5, 5, 5));
+                }
+                case BENEFICIARIES -> {
+                    g2.draw(new Ellipse2D.Double(11, 3, 6, 6));
+                    g2.draw(new Arc2D.Double(7, 12, 14, 14, 0, 180, Arc2D.OPEN));
+                    g2.draw(new Ellipse2D.Double(2, 9, 5, 5));
+                    g2.draw(new Arc2D.Double(0, 17, 10, 8, 0, 180, Arc2D.OPEN));
+                    g2.draw(new Ellipse2D.Double(21, 9, 5, 5));
+                    g2.draw(new Arc2D.Double(18, 17, 10, 8, 0, 180, Arc2D.OPEN));
+                }
+                case REPORTS -> {
+                    g2.drawRoundRect(5, 2, 18, 24, 4, 4);
+                    g2.drawLine(8, 19, 12, 14);
+                    g2.drawLine(12, 14, 15, 18);
+                    g2.drawLine(15, 18, 20, 11);
+                }
+                case LOGOUT -> {
+                    Path2D door = new Path2D.Double();
+                    door.moveTo(12, 4); door.lineTo(3, 4); door.lineTo(3, 24); door.lineTo(12, 24);
+                    g2.draw(door);
+                    g2.drawLine(9, 14, 25, 14);
+                    g2.drawLine(20, 9, 25, 14);
+                    g2.drawLine(20, 19, 25, 14);
+                }
+                default -> { }
+            }
+            g2.dispose();
+        }
+
+        @Override public int getIconWidth() { return 28; }
+        @Override public int getIconHeight() { return 28; }
     }
 }

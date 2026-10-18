@@ -8,7 +8,9 @@ import java.util.List;
 public class DataStore {
     private final ArrayList<User> users = new ArrayList<>();
     private final ArrayList<Donation> donations = new ArrayList<>();
+    private final ArrayList<Distribution> distributions = new ArrayList<>();
     private int nextDonationId = 1;
+    private int nextDistributionId = 1;
     private User currentUser;
     private String rememberedEmail = "";
 
@@ -88,6 +90,89 @@ public class DataStore {
     }
 
     public int countByStatus(String... statuses) { return getDonationsByStatus(statuses).size(); }
+
+    // ---- collection ----
+
+    /**
+     * Donations for one tab of the Collection page.
+     * Pending tab = approved (Available) donations that still need a volunteer.
+     */
+    public List<Donation> getDonationsByCollectionStatus(String collectionStatus) {
+        List<Donation> result = new ArrayList<>();
+        for (Donation d : donations) {
+            boolean match;
+            if (collectionStatus.equals(Donation.COL_PENDING)) {
+                match = d.getStatus().equals(Donation.AVAILABLE)
+                        && d.getCollectionStatus().equals(Donation.COL_PENDING);
+            } else {
+                match = d.getCollectionStatus().equals(collectionStatus);
+            }
+            if (match) result.add(d);
+        }
+        return result;
+    }
+
+    /** Assigns a volunteer and moves the collection to Ongoing. Returns an error message, or null if OK. */
+    public String assignVolunteer(Donation d, String volunteerName, LocalDate pickupDate) {
+        if (d == null) return "No donation selected.";
+        if (volunteerName == null || volunteerName.isBlank()) return "Please choose a volunteer.";
+        if (d.getStatus().equals(Donation.PENDING)) return "This donation is still waiting for approval.";
+        if (d.getStatus().equals(Donation.COLLECTED) || d.getStatus().equals(Donation.DISTRIBUTED)) {
+            return "This donation was already collected.";
+        }
+        if (pickupDate.isBefore(LocalDate.now())) return "Pickup date cannot be in the past.";
+        if (pickupDate.isAfter(d.getDeadline())) return "Pickup date cannot be after the deadline (" + d.getDeadlineText() + ").";
+        d.assignVolunteer(volunteerName, pickupDate);
+        return null;
+    }
+
+    /** Changes the collection status (Pending / Ongoing / Completed). Returns an error message, or null if OK. */
+    public String updateCollectionStatus(Donation d, String newStatus) {
+        if (d == null) return "No donation selected.";
+        if (d.getStatus().equals(Donation.PENDING)) return "This donation is still waiting for approval.";
+        if (d.getStatus().equals(Donation.DISTRIBUTED) || d.getDistributedQuantity() > 0) {
+            return "Food from this donation was already distributed, so its status can't be changed.";
+        }
+        if (d.getCollectionStatus().equals(newStatus)) return "Collection status is already " + newStatus + ".";
+        if (!newStatus.equals(Donation.COL_PENDING) && !d.hasVolunteer()) return "Assign a volunteer first.";
+
+        if (newStatus.equals(Donation.COL_COMPLETED)) {
+            d.setStatus(Donation.COLLECTED);          // also sets collection status to Completed
+        } else {
+            d.setStatus(Donation.AVAILABLE);          // going back from Completed
+            d.setCollectionStatus(newStatus);
+            if (newStatus.equals(Donation.COL_PENDING)) d.clearVolunteer();
+        }
+        return null;
+    }
+
+    // ---- distribution ----
+    public List<Distribution> getDistributions() { return distributions; }
+
+    /** Collected donations that still have food left to give out. */
+    public List<Donation> getDonationsReadyToDistribute() {
+        List<Donation> result = new ArrayList<>();
+        for (Donation d : donations) {
+            if (d.getStatus().equals(Donation.COLLECTED) && d.getRemainingQuantity() > 0) result.add(d);
+        }
+        return result;
+    }
+
+    /** Records food given to a beneficiary. Returns an error message, or null if OK. */
+    public String recordDistribution(Donation d, String beneficiaryName, double qty, LocalDate date) {
+        if (d == null) return "Please select a food item from the list.";
+        if (!d.getStatus().equals(Donation.COLLECTED)) return "Only collected food can be distributed.";
+        if (beneficiaryName == null || beneficiaryName.isBlank()) return "Please select a beneficiary.";
+        if (qty <= 0) return "Quantity must be greater than zero.";
+        if (qty > d.getRemainingQuantity() + 1e-9) {
+            return "Only " + d.getRemainingText() + " of " + d.getFoodName() + " is left.";
+        }
+        d.addDistributed(qty);
+        distributions.add(new Distribution(nextDistributionId++, d.getId(), d.getFoodName(),
+                beneficiaryName, qty, d.getUnit(), date));
+        if (d.getRemainingQuantity() <= 1e-9) d.setStatus(Donation.DISTRIBUTED);
+        return null;
+    }
 
     // ---- session ----
     public User getCurrentUser() { return currentUser; }
