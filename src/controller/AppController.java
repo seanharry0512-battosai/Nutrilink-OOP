@@ -20,6 +20,10 @@ public class AppController {
     private final RegisterView registerView;
     private final DashboardView dashboard;
     private final AddDonationView addView;
+    private final DonationsView donationsView;
+    private final DonationDetailsView detailsView;
+    private final CollectionView collectionView;
+    private final DistributionView distributionView;
 
     public AppController(DataStore store, MainFrame frame) {
         this.store = store;
@@ -28,11 +32,18 @@ public class AppController {
         this.registerView = frame.getRegisterView();
         this.dashboard = frame.getDashboardView();
         this.addView = dashboard.getAddDonationView();
+        this.donationsView = dashboard.getDonationsView();
+        this.detailsView = dashboard.getDetailsView();
+        this.collectionView = dashboard.getCollectionView();
+        this.distributionView = dashboard.getDistributionView();
         wireLogin();
         wireRegister();
         wireDashboard();
         wireAddDonation();
-        wireStatusButtons();
+        wireDonations();
+        wireDetails();
+        wireCollection();
+        wireDistribution();
     }
 
     public void start() {
@@ -83,16 +94,29 @@ public class AppController {
         addView.getCancelButton().addActionListener(e -> { addView.clear(); goTo(DashboardView.HOME); });
     }
 
-    private void wireStatusButtons() {
-        TablePage collection = dashboard.getCollectionPage();
-        collection.addAction("Approve", Theme.GREEN)
-                .addActionListener(new StatusAction(collection, Donation.AVAILABLE, Donation.PENDING));
-        collection.addAction("Mark as Collected", Theme.ORANGE)
-                .addActionListener(new StatusAction(collection, Donation.COLLECTED, Donation.PENDING, Donation.AVAILABLE));
+    /** Donations list page: Add Donation button, row click / menu -> details, Approve. */
+    private void wireDonations() {
+        donationsView.getAddButton().addActionListener(new NavAction(DashboardView.ADD));
+        donationsView.setOnView(this::openDetails);
+        donationsView.setOnApprove(this::approveDonation);
+    }
 
-        TablePage distribution = dashboard.getDistributionPage();
-        distribution.addAction("Mark as Distributed", Theme.GREEN)
-                .addActionListener(new StatusAction(distribution, Donation.DISTRIBUTED, Donation.COLLECTED));
+    /** Donation details page: Back link, Assign Volunteer, Update Status. */
+    private void wireDetails() {
+        detailsView.getBackLabel().addMouseListener(new LinkClick(() -> goTo(DashboardView.DONATIONS)));
+        detailsView.getAssignButton().addActionListener(e -> assignVolunteer(detailsView.getCurrentDonation()));
+        detailsView.getUpdateStatusButton().addActionListener(e -> chooseCollectionStatus(detailsView.getCurrentDonation()));
+    }
+
+    /** Collection page: View, Assign Volunteer, Mark Completed. */
+    private void wireCollection() {
+        collectionView.setOnView(this::openDetails);
+        collectionView.setOnAssign(this::assignVolunteer);
+        collectionView.setOnComplete(d -> changeCollectionStatus(d, Donation.COL_COMPLETED));
+    }
+
+    private void wireDistribution() {
+        distributionView.getRecordButton().addActionListener(new RecordDistributionAction());
     }
 
     // ---------------- helpers ----------------
@@ -129,6 +153,61 @@ public class AppController {
         frame.showScreen(MainFrame.APP);
     }
 
+    private void openDetails(Donation d) {
+        refresh();
+        detailsView.showDonation(d);
+        dashboard.showPage(DashboardView.DETAILS);
+    }
+
+    /** Only coordinators and volunteers may change collection / distribution data. */
+    private boolean requireManager() {
+        if (store.getCurrentUser().canManageCollection()) return true;
+        info("Not allowed", "Only coordinators and volunteers can update donation status.");
+        return false;
+    }
+
+    private void approveDonation(Donation d) {
+        if (!requireManager()) return;
+        if (!d.getStatus().equals(Donation.PENDING)) {
+            error("This donation is " + d.getStatus() + " and can't be approved.");
+            return;
+        }
+        d.setStatus(Donation.AVAILABLE);
+        refresh();
+    }
+
+    private void assignVolunteer(Donation d) {
+        if (d == null || !requireManager()) return;
+        List<String> names = new ArrayList<>();
+        for (Volunteer v : store.getUsersByType(Volunteer.class)) names.add(v.getFullName());
+        if (names.isEmpty()) { error("There are no registered volunteers yet."); return; }
+
+        AssignVolunteerDialog.Result r = AssignVolunteerDialog.show(frame, d, names);
+        if (r == null) return;
+        String problem = store.assignVolunteer(d, r.volunteer, r.pickupDate);
+        if (problem != null) { error(problem); return; }
+        refresh();
+        info("Volunteer assigned", r.volunteer + " will pick up " + d.getFoodName() + " on " + d.getPickupText() + ".");
+    }
+
+    private void chooseCollectionStatus(Donation d) {
+        if (d == null || !requireManager()) return;
+        Object choice = JOptionPane.showInputDialog(frame,
+                "Collection status for " + d.getFoodName() + ":", "Update Status",
+                JOptionPane.QUESTION_MESSAGE, null,
+                new String[]{Donation.COL_PENDING, Donation.COL_ONGOING, Donation.COL_COMPLETED},
+                d.getCollectionStatus());
+        if (choice == null) return;
+        changeCollectionStatus(d, (String) choice);
+    }
+
+    private void changeCollectionStatus(Donation d, String newStatus) {
+        if (d == null || !requireManager()) return;
+        String problem = store.updateCollectionStatus(d, newStatus);
+        if (problem != null) { error(problem); return; }
+        refresh();
+    }
+
     /** Re-reads the model and updates every screen so nothing is static. */
     private void refresh() {
         List<Donation> all = store.getDonations();
@@ -149,6 +228,18 @@ public class AppController {
                 store.getDonationsByStatus(Donation.COLLECTED, Donation.DISTRIBUTED),
                 beneficiaries);
         dashboard.setReport(buildReport());
+
+        // new pages
+        donationsView.setDonations(all);
+        collectionView.setData(
+                store.getDonationsByCollectionStatus(Donation.COL_PENDING),
+                store.getDonationsByCollectionStatus(Donation.COL_ONGOING),
+                store.getDonationsByCollectionStatus(Donation.COL_COMPLETED));
+        distributionView.setAvailableFood(store.getDonationsReadyToDistribute());
+        List<String> names = new ArrayList<>();
+        for (Beneficiary b : beneficiaries) names.add(b.getFullName());
+        distributionView.setBeneficiaries(names);
+        if (detailsView.getCurrentDonation() != null) detailsView.showDonation(detailsView.getCurrentDonation());
     }
 
     private String buildReport() {
@@ -161,6 +252,8 @@ public class AppController {
         sb.append(String.format("  %-20s %d%n", "Available:", store.countByStatus(Donation.AVAILABLE)));
         sb.append(String.format("  %-20s %d%n", "Collected:", store.countByStatus(Donation.COLLECTED)));
         sb.append(String.format("  %-20s %d%n%n", "Distributed:", store.countByStatus(Donation.DISTRIBUTED)));
+        sb.append("DISTRIBUTIONS\n");
+        sb.append(String.format("  %-20s %d%n%n", "Records:", store.getDistributions().size()));
         sb.append("REGISTERED USERS\n");
         sb.append(String.format("  %-20s %d%n", "Food donors:", store.getUsersByType(Donor.class).size()));
         sb.append(String.format("  %-20s %d%n", "Coordinators:", store.getUsersByType(Coordinator.class).size()));
@@ -253,31 +346,31 @@ public class AppController {
         }
     }
 
-    private class StatusAction implements ActionListener {
-        private final TablePage page;
-        private final String newStatus;
-        private final List<String> allowedFrom;
-
-        StatusAction(TablePage page, String newStatus, String... allowedFrom) {
-            this.page = page;
-            this.newStatus = newStatus;
-            this.allowedFrom = List.of(allowedFrom);
-        }
-
+    /** "Record Distribution" button on the Distribution page. */
+    private class RecordDistributionAction implements ActionListener {
         @Override public void actionPerformed(ActionEvent e) {
-            if (!store.getCurrentUser().canManageCollection()) {
-                info("Not allowed", "Only coordinators and volunteers can update donation status.");
-                return;
+            if (!requireManager()) return;
+            Donation d = distributionView.getSelectedDonation();
+            if (d == null) { info("Select food", "Please select a food item from the Available Food list."); return; }
+            String beneficiary = distributionView.getBeneficiaryName();
+            if (beneficiary == null) { error("There are no beneficiaries to choose from."); return; }
+
+            double qty;
+            try {
+                qty = Double.parseDouble(distributionView.getQuantityText());
+            } catch (NumberFormatException ex) {
+                error("Quantity must be a number."); return;
             }
-            int id = page.getSelectedId();
-            if (id < 0) { info("Select a donation", "Please select a donation from the table first."); return; }
-            Donation d = store.findDonation(id);
-            if (d == null || !allowedFrom.contains(d.getStatus())) {
-                error("This donation is " + (d == null ? "missing" : d.getStatus()) + " and can't be changed to " + newStatus + ".");
-                return;
-            }
-            d.setStatus(newStatus);
+
+            String food = d.getFoodName();
+            String unit = d.getUnit();
+            String problem = store.recordDistribution(d, beneficiary, qty, distributionView.getDate());
+            if (problem != null) { error(problem); return; }
+
+            distributionView.clearForm();
             refresh();
+            String shown = (qty == Math.rint(qty)) ? String.valueOf((long) qty) : String.valueOf(qty);
+            info("Distribution recorded", shown + " " + unit + " of " + food + " given to " + beneficiary + ".");
         }
     }
 
