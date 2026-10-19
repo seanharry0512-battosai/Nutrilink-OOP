@@ -1,6 +1,7 @@
 package view;
 
 import model.Donation;
+import model.Volunteer;
 
 import javax.swing.*;
 import java.awt.*;
@@ -10,10 +11,10 @@ import java.util.List;
 /** Small popup to pick a volunteer and a pickup date. Returns null if cancelled. */
 public final class AssignVolunteerDialog {
     public static final class Result {
-        public final String volunteer;
+        public final Volunteer volunteer;
         public final LocalDate pickupDate;
 
-        Result(String volunteer, LocalDate pickupDate) {
+        Result(Volunteer volunteer, LocalDate pickupDate) {
             this.volunteer = volunteer;
             this.pickupDate = pickupDate;
         }
@@ -21,14 +22,26 @@ public final class AssignVolunteerDialog {
 
     private AssignVolunteerDialog() { }
 
-    public static Result show(Component parent, Donation d, List<String> volunteers) {
-        JComboBox<String> box = new JComboBox<>(volunteers.toArray(new String[0]));
+    public static Result show(Component parent, Donation d, List<Volunteer> volunteers) {
+        JComboBox<Volunteer> box = new JComboBox<>(volunteers.toArray(new Volunteer[0]));
         box.setFont(Theme.font(Font.PLAIN, 14));
-        if (d.hasVolunteer()) box.setSelectedItem(d.getAssignedVolunteer());
+        box.setRenderer(new DefaultListCellRenderer() {
+            @Override public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                                                                    boolean selected, boolean focus) {
+                super.getListCellRendererComponent(list, value, index, selected, focus);
+                if (value instanceof Volunteer) setText(((Volunteer) value).getFullName());
+                return this;
+            }
+        });
+        for (Volunteer v : volunteers) {
+            if (d.hasVolunteer() && v.getId() == d.getAssignedVolunteerId()) box.setSelectedItem(v);
+        }
 
-        LocalDate start = (d.getPickupDate() != null) ? d.getPickupDate() : LocalDate.now();
-        if (start.isAfter(d.getDeadline())) start = d.getDeadline();
-        DateSpinner spinner = new DateSpinner(start);
+        // the pickup date must be between today and the deadline
+        LocalDate today = LocalDate.now();
+        LocalDate latest = d.getDeadline().isBefore(today) ? today : d.getDeadline();
+        LocalDate start = (d.getPickupDate() != null) ? d.getPickupDate() : today;
+        DateSpinner spinner = new DateSpinner(start, today, latest);
 
         JPanel p = new JPanel(new GridLayout(0, 1, 0, 6));
         p.add(Theme.label(d.getFoodName() + " - " + d.getQuantityText(), 16, Font.BOLD, Color.BLACK));
@@ -41,6 +54,6 @@ public final class AssignVolunteerDialog {
         int choice = JOptionPane.showConfirmDialog(parent, p, "Assign Volunteer",
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (choice != JOptionPane.OK_OPTION) return null;
-        return new Result((String) box.getSelectedItem(), spinner.getDate());
+        return new Result((Volunteer) box.getSelectedItem(), spinner.getDate());
     }
 }

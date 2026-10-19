@@ -8,21 +8,28 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.geom.Path2D;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
-/** Inventory page: total food card, search, and a table of food that is still in stock. */
+/** Inventory page: stock summary card, search, and a table of food that is still in stock. */
 public class InventoryView extends JPanel {
     private static final String[] COLUMNS = {"Name", "Quantity", "Unit", "Expiry", "Status"};
     private static final double[] WEIGHTS = {0.30, 0.15, 0.15, 0.22, 0.18};
-    private static final DateTimeFormatter EXPIRY_FORMAT = DateTimeFormatter.ofPattern("MMMM d, yyyy");
+    private static final DateTimeFormatter EXPIRY_FORMAT = DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH);
     private static final String READY = "Ready";
     private static final String URGENT = "Urgent";
+    private static final String EXPIRED = "Expired";
 
     private final JLabel totalLabel = Theme.label("0 Items", 28, Font.BOLD, Color.BLACK);
+    private final JLabel breakdownLabel = Theme.label(" ", 13, Font.PLAIN, Theme.MUTED);
     private final Theme.HintField search = new Theme.HintField("Search inventory...");
     private final JPanel rows = new JPanel();
     private List<Donation> all = new ArrayList<>();
@@ -32,17 +39,17 @@ public class InventoryView extends JPanel {
         setBackground(Color.WHITE);
         setBorder(new EmptyBorder(22, 28, 22, 28));
 
-        // ---- total food card ----
-        JPanel text = new JPanel(new GridLayout(2, 1, 0, 0));
+        // ---- stock summary card (quantities are only added up per unit: kg with kg, packs with packs) ----
+        JPanel text = new JPanel(new GridLayout(3, 1, 0, 0));
         text.setOpaque(false);
-        text.add(Theme.label("Total Food Available", 14, Font.PLAIN, Color.BLACK));
+        text.add(Theme.label("Food in Stock", 14, Font.PLAIN, Color.BLACK));
         text.add(totalLabel);
+        text.add(breakdownLabel);
         JPanel card = new JPanel(new BorderLayout(18, 0));
         card.setBackground(Color.WHITE);
         card.setBorder(BorderFactory.createCompoundBorder(
                 new Theme.RoundedBorder(Theme.BORDER, 8), new EmptyBorder(6, 14, 6, 14)));
-        JLabel boxIcon = new JLabel(new BoxIcon());
-        card.add(boxIcon, BorderLayout.WEST);
+        card.add(new JLabel(new BoxIcon()), BorderLayout.WEST);
         card.add(text, BorderLayout.CENTER);
 
         // ---- search ----
@@ -78,26 +85,21 @@ public class InventoryView extends JPanel {
         north.add(search, Theme.row(2, 14));
         north.add(header, Theme.row(3, 14));
         add(north, BorderLayout.NORTH);
-
-        // ---- list ----
-        rows.setLayout(new BoxLayout(rows, BoxLayout.Y_AXIS));
-        rows.setBackground(Color.WHITE);
-        JPanel wrapper = new JPanel(new BorderLayout());
-        wrapper.setBackground(Color.WHITE);
-        wrapper.add(rows, BorderLayout.NORTH);
-        JScrollPane scroll = new JScrollPane(wrapper);
-        scroll.setBorder(null);
-        scroll.getViewport().setBackground(Color.WHITE);
-        scroll.getVerticalScrollBar().setUnitIncrement(16);
-        add(scroll, BorderLayout.CENTER);
+        add(Theme.listScroll(rows), BorderLayout.CENTER);
     }
 
-    // ---------------- API for DashboardView ----------------
+    // ---------------- API for the controller ----------------
     public void setItems(List<Donation> items) {
         all = new ArrayList<>(items);
-        double total = 0;
-        for (Donation d : all) total += d.getRemainingQuantity();
-        totalLabel.setText(number(total) + (total == 1 ? " Item" : " Items"));
+        Map<String, Double> perUnit = new LinkedHashMap<>();
+        for (Donation d : all) perUnit.merge(d.getUnit(), d.getRemainingQuantity(), Double::sum);
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, Double> e : perUnit.entrySet()) {
+            if (sb.length() > 0) sb.append("  \u00B7  ");
+            sb.append(number(e.getValue())).append(' ').append(e.getKey());
+        }
+        totalLabel.setText(all.size() + (all.size() == 1 ? " Item" : " Items"));
+        breakdownLabel.setText(sb.length() == 0 ? " " : sb.toString());
         applyFilter();
     }
 
@@ -125,7 +127,7 @@ public class InventoryView extends JPanel {
     private JPanel buildRow(Donation d) {
         LocalDate today = LocalDate.now();
         boolean expired = d.getDeadline().isBefore(today);
-        boolean urgent = expired || !d.getDeadline().isAfter(today.plusDays(2));
+        boolean urgent = !expired && !d.getDeadline().isAfter(today.plusDays(2));
 
         JPanel row = new JPanel(new ColumnLayout(WEIGHTS));
         row.setBackground(Color.WHITE);
@@ -137,21 +139,21 @@ public class InventoryView extends JPanel {
         JPanel name = new JPanel();
         name.setLayout(new BoxLayout(name, BoxLayout.X_AXIS));
         name.setOpaque(false);
-        name.add(new FoodImage(d.getFoodName(), 58));
+        name.add(new FoodImage(d.getFoodName(), d.getDonationType(), 58));
         name.add(Box.createHorizontalStrut(14));
         name.add(Theme.label(d.getFoodName(), 18, Font.BOLD, Color.BLACK));
 
         String expiryText = d.getDeadline().format(EXPIRY_FORMAT);
         JLabel expiry = expired
-                ? Theme.label("<html><s>" + expiryText + "</s></html>", 16, Font.PLAIN, new Color(0xD32F2F))
+                ? Theme.label("<html><s>" + expiryText + "</s></html>", 16, Font.PLAIN, Theme.STATUS_RED)
                 : Theme.label(expiryText, 16, Font.PLAIN, Color.BLACK);
+        expiry.setHorizontalAlignment(SwingConstants.CENTER);
 
         row.add(name);
         row.add(center(number(d.getRemainingQuantity())));
         row.add(center(d.getUnit()));
         row.add(expiry);
-        expiry.setHorizontalAlignment(SwingConstants.CENTER);
-        row.add(new FilledPill(urgent ? URGENT : READY));
+        row.add(ColumnLayout.centered(new FilledPill(expired ? EXPIRED : urgent ? URGENT : READY)));
         return row;
     }
 
@@ -163,28 +165,38 @@ public class InventoryView extends JPanel {
 
     private static String number(double q) {
         if (q == Math.rint(q)) return String.valueOf((long) q);
-        return String.format("%.1f", q);
+        return BigDecimal.valueOf(q).setScale(2, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString();
     }
 
-    /** Light-filled pill: green "Ready" or red "Urgent". */
+    /** Light-filled pill: green "Ready", orange "Urgent" or red "Expired". */
     private static class FilledPill extends JLabel {
-        private final boolean urgent;
+        private final Color fill;
+        private final Color line;
 
         FilledPill(String text) {
             super(text, SwingConstants.CENTER);
-            this.urgent = text.equals(URGENT);
             setOpaque(false);
             setFont(Theme.font(Font.BOLD, 14));
-            setForeground(urgent ? new Color(0xD32F2F) : new Color(0x1E8449));
+            switch (text) {
+                case URGENT -> {
+                    fill = new Color(0xFFE2B0); line = new Color(0xE8B56A); setForeground(new Color(0xB36B00));
+                }
+                case EXPIRED -> {
+                    fill = new Color(0xFFCDD2); line = new Color(0xE59A9A); setForeground(Theme.STATUS_RED);
+                }
+                default -> {
+                    fill = new Color(0xB5F0C3); line = new Color(0x7BCB8E); setForeground(new Color(0x1E8449));
+                }
+            }
             setPreferredSize(new Dimension(102, 50));
         }
 
         @Override protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(urgent ? new Color(0xFFCDD2) : new Color(0xB5F0C3));
+            g2.setColor(fill);
             g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 22, 22);
-            g2.setColor(urgent ? new Color(0xE59A9A) : new Color(0x7BCB8E));
+            g2.setColor(line);
             g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 22, 22);
             g2.dispose();
             super.paintComponent(g);
@@ -216,43 +228,5 @@ public class InventoryView extends JPanel {
 
         @Override public int getIconWidth() { return 72; }
         @Override public int getIconHeight() { return 70; }
-    }
-
-    /** Splits the width by fixed percentages so the header and every row line up. */
-    private static class ColumnLayout implements LayoutManager {
-        private final double[] weights;
-
-        ColumnLayout(double[] weights) { this.weights = weights; }
-
-        @Override public void addLayoutComponent(String name, Component comp) { }
-        @Override public void removeLayoutComponent(Component comp) { }
-
-        @Override public Dimension preferredLayoutSize(Container parent) {
-            int h = 0;
-            for (Component c : parent.getComponents()) h = Math.max(h, c.getPreferredSize().height);
-            Insets in = parent.getInsets();
-            return new Dimension(600, h + in.top + in.bottom);
-        }
-
-        @Override public Dimension minimumLayoutSize(Container parent) { return preferredLayoutSize(parent); }
-
-        @Override public void layoutContainer(Container parent) {
-            Insets in = parent.getInsets();
-            int total = parent.getWidth() - in.left - in.right;
-            int h = parent.getHeight() - in.top - in.bottom;
-            int x = in.left;
-            for (int i = 0; i < parent.getComponentCount() && i < weights.length; i++) {
-                Component c = parent.getComponent(i);
-                int cw = (int) (total * weights[i]);
-                if (c instanceof FilledPill) {                                   // centered at its own size
-                    Dimension p = c.getPreferredSize();
-                    int w = Math.min(p.width, cw);
-                    c.setBounds(x + (cw - w) / 2, in.top + (h - p.height) / 2, w, p.height);
-                } else {
-                    c.setBounds(x, in.top, cw, h);
-                }
-                x += cw;
-            }
-        }
     }
 }

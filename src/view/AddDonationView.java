@@ -4,9 +4,6 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.time.LocalDate;
-import java.time.ZoneId;
-import java.util.Calendar;
-import java.util.Date;
 
 public class AddDonationView extends JPanel {
     private final JTextField foodNameField = new Theme.HintField("e.g. Cooked Meals");
@@ -15,7 +12,7 @@ public class AddDonationView extends JPanel {
     private final JTextField quantityField = new Theme.HintField("e.g. 12");
     private final JComboBox<String> unitBox = new JComboBox<>(new String[]{"packs", "kg", "pcs", "liters", "boxes"});
     private final JTextField pickupField = new Theme.HintField("e.g. Quezon City");
-    private final JSpinner deadlineSpinner = new JSpinner(new SpinnerDateModel(new Date(), null, null, Calendar.DAY_OF_MONTH));
+    private final DateSpinner deadlineSpinner = new DateSpinner(LocalDate.now().plusDays(1), LocalDate.now(), null);
     private final JRadioButton freshButton = new JRadioButton("Fresh", true);
     private final JRadioButton safeButton = new JRadioButton("Safe for Consumption");
     private final JTextArea notesArea = new JTextArea(3, 20);
@@ -32,8 +29,6 @@ public class AddDonationView extends JPanel {
             box.setBackground(Color.WHITE);
             box.setPreferredSize(new Dimension(200, 40));
         }
-        deadlineSpinner.setEditor(new JSpinner.DateEditor(deadlineSpinner, "MMMM d, yyyy"));
-        deadlineSpinner.setFont(Theme.font(Font.PLAIN, 14));
         deadlineSpinner.setPreferredSize(new Dimension(240, 40));
 
         ButtonGroup group = new ButtonGroup();
@@ -97,9 +92,7 @@ public class AddDonationView extends JPanel {
     public String getQuantityText() { return quantityField.getText(); }
     public String getUnit() { return (String) unitBox.getSelectedItem(); }
     public String getPickupLocation() { return pickupField.getText(); }
-    public LocalDate getDeadline() {
-        return ((Date) deadlineSpinner.getValue()).toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-    }
+    public LocalDate getDeadline() { return deadlineSpinner.getDate(); }
     public String getCondition() { return safeButton.isSelected() ? "Safe for Consumption" : "Fresh"; }
     public String getNotes() { return notesArea.getText().trim(); }
     public JButton getSubmitButton() { return submitButton; }
@@ -113,6 +106,6 @@ public class AddDonationView extends JPanel {
         typeBox.setSelectedIndex(0);
         unitBox.setSelectedIndex(0);
         freshButton.setSelected(true);
-        deadlineSpinner.setValue(new Date());
+        deadlineSpinner.setDate(LocalDate.now().plusDays(1));
     }
 }

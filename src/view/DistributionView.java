@@ -1,5 +1,6 @@
 package view;
 
+import model.Beneficiary;
 import model.Donation;
 
 import javax.swing.*;
@@ -20,10 +21,10 @@ public class DistributionView extends JPanel {
     private final JTable table = new JTable(model);
     private List<Donation> shown = new ArrayList<>();
 
-    private final JComboBox<String> beneficiaryBox = new JComboBox<>();
+    private final JComboBox<Beneficiary> beneficiaryBox = new JComboBox<>();
     private final Theme.HintField quantityField = new Theme.HintField("Enter quantity");
     private final JTextField unitField = new JTextField();
-    private final DateSpinner dateSpinner = new DateSpinner(LocalDate.now());
+    private final DateSpinner dateSpinner = new DateSpinner(LocalDate.now(), null, LocalDate.now());
     private final JLabel selectedInfo = Theme.label("Select a food item from the list.", 13, Font.PLAIN, Theme.MUTED);
     private final JButton recordButton = Theme.primary("Record Distribution");
 
@@ -53,6 +54,14 @@ public class DistributionView extends JPanel {
         beneficiaryBox.setFont(Theme.font(Font.PLAIN, 15));
         beneficiaryBox.setBackground(Color.WHITE);
         beneficiaryBox.setPreferredSize(new Dimension(200, 42));
+        beneficiaryBox.setRenderer(new DefaultListCellRenderer() {
+            @Override public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                                                                    boolean selected, boolean focus) {
+                super.getListCellRendererComponent(list, value, index, selected, focus);
+                if (value instanceof Beneficiary) setText(((Beneficiary) value).getFullName());
+                return this;
+            }
+        });
         Theme.styleField(unitField);
         unitField.setEditable(false);
         unitField.setBackground(new Color(0xF5F5F5));
@@ -91,7 +100,7 @@ public class DistributionView extends JPanel {
     public JButton getRecordButton() { return recordButton; }
     public String getQuantityText() { return quantityField.getText().trim(); }
     public LocalDate getDate() { return dateSpinner.getDate(); }
-    public String getBeneficiaryName() { return (String) beneficiaryBox.getSelectedItem(); }
+    public Beneficiary getBeneficiary() { return (Beneficiary) beneficiaryBox.getSelectedItem(); }
 
     public Donation getSelectedDonation() {
         int r = table.getSelectedRow();
@@ -102,7 +111,7 @@ public class DistributionView extends JPanel {
         Donation keep = getSelectedDonation();
         shown = new ArrayList<>(donations);
         model.setRowCount(0);
-        for (Donation d : shown) model.addRow(new Object[]{d.getFoodName(), d.getRemainingText(), "Ready"});
+        for (Donation d : shown) model.addRow(new Object[]{d.getFoodName(), d.getRemainingText(), d.isUrgent() ? "Urgent" : "Ready"});
         if (keep != null) {
             int idx = shown.indexOf(keep);
             if (idx >= 0) table.setRowSelectionInterval(idx, idx);
@@ -110,11 +119,13 @@ public class DistributionView extends JPanel {
         updateSelectionInfo();
     }
 
-    public void setBeneficiaries(List<String> names) {
-        String keep = (String) beneficiaryBox.getSelectedItem();
+    public void setBeneficiaries(List<Beneficiary> list) {
+        Beneficiary keep = getBeneficiary();
         beneficiaryBox.removeAllItems();
-        for (String n : names) beneficiaryBox.addItem(n);
-        if (keep != null) beneficiaryBox.setSelectedItem(keep);
+        for (Beneficiary b : list) beneficiaryBox.addItem(b);
+        if (keep != null) {
+            for (Beneficiary b : list) if (b.getId() == keep.getId()) beneficiaryBox.setSelectedItem(b);
+        }
     }
 
     public void clearForm() {
@@ -130,7 +141,7 @@ public class DistributionView extends JPanel {
             selectedInfo.setText("Select a food item from the list.");
         } else {
             unitField.setText(d.getUnit());
-            selectedInfo.setText("Selected: " + d.getFoodName() + " (" + d.getRemainingText() + " left)");
+            selectedInfo.setText("Selected: " + d.getFoodName() + " (" + d.getRemainingText() + " left, deadline " + d.getDeadlineText() + ")");
         }
     }
 
@@ -179,7 +190,7 @@ public class DistributionView extends JPanel {
         };
     }
 
-    /** Draws the green "Ready" pill inside a table cell. */
+    /** Draws the green "Ready" / orange "Urgent" pill inside a table cell. */
     private static class PillCell extends JPanel implements TableCellRenderer {
         private String text = "";
 
@@ -193,17 +204,18 @@ public class DistributionView extends JPanel {
 
         @Override protected void paintComponent(Graphics g) {
             super.paintComponent(g);
+            boolean urgent = text.equals("Urgent");
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             int w = Math.min(getWidth() - 16, 96), h = 34;
             int x = (getWidth() - w) / 2, y = (getHeight() - h) / 2;
-            g2.setColor(new Color(0xB5F0C3));
+            g2.setColor(urgent ? new Color(0xFFE2B0) : new Color(0xB5F0C3));
             g2.fillRoundRect(x, y, w, h, 16, 16);
-            g2.setColor(new Color(0x7BCB8E));
+            g2.setColor(urgent ? new Color(0xE8B56A) : new Color(0x7BCB8E));
             g2.drawRoundRect(x, y, w - 1, h - 1, 16, 16);
             g2.setFont(Theme.font(Font.BOLD, 13));
-            g2.setColor(new Color(0x1E8449));
+            g2.setColor(urgent ? new Color(0xB36B00) : new Color(0x1E8449));
             FontMetrics fm = g2.getFontMetrics();
             g2.drawString(text, x + (w - fm.stringWidth(text)) / 2, y + (h - fm.getHeight()) / 2 + fm.getAscent());
             g2.dispose();

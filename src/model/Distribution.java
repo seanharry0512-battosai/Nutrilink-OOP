@@ -5,24 +5,28 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 /** One record of food given to a beneficiary. */
 public class Distribution implements Serializable {
-    private static final DateTimeFormatter FORMAT = DateTimeFormatter.ofPattern("MMM d, yyyy");
+    private static final long serialVersionUID = 2L;
+    private static final DateTimeFormatter FORMAT = DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH);
 
     private final int id;
     private final int donationId;
     private final String foodName;
-    private final String beneficiaryName;
+    private final int beneficiaryId;
+    private String beneficiaryName;
     private final double quantity;
     private final String unit;
     private final LocalDate date;
 
-    public Distribution(int id, int donationId, String foodName, String beneficiaryName,
+    public Distribution(int id, int donationId, String foodName, int beneficiaryId, String beneficiaryName,
                         double quantity, String unit, LocalDate date) {
         this.id = id;
         this.donationId = donationId;
         this.foodName = foodName;
+        this.beneficiaryId = beneficiaryId;
         this.beneficiaryName = beneficiaryName;
         this.quantity = quantity;
         this.unit = unit;
@@ -32,7 +36,9 @@ public class Distribution implements Serializable {
     public int getId() { return id; }
     public int getDonationId() { return donationId; }
     public String getFoodName() { return foodName; }
+    public int getBeneficiaryId() { return beneficiaryId; }
     public String getBeneficiaryName() { return beneficiaryName; }
+    void setBeneficiaryName(String name) { this.beneficiaryName = name; }
     public double getQuantity() { return quantity; }
     public String getUnit() { return unit; }
     public LocalDate getDate() { return date; }

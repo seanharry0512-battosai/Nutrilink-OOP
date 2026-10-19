@@ -30,6 +30,7 @@ public class DonationsView extends JPanel {
     private final JPanel rows = new JPanel();
 
     private List<Donation> all = new ArrayList<>();
+    private boolean canApprove;
     private Consumer<Donation> onView;
     private Consumer<Donation> onApprove;
 
@@ -80,18 +81,7 @@ public class DonationsView extends JPanel {
         north.add(toolbar, Theme.row(1, 14));
         north.add(header, Theme.row(2, 14));
         add(north, BorderLayout.NORTH);
-
-        // ---- list ----
-        rows.setLayout(new BoxLayout(rows, BoxLayout.Y_AXIS));
-        rows.setBackground(Color.WHITE);
-        JPanel wrapper = new JPanel(new BorderLayout());
-        wrapper.setBackground(Color.WHITE);
-        wrapper.add(rows, BorderLayout.NORTH);
-        JScrollPane scroll = new JScrollPane(wrapper);
-        scroll.setBorder(null);
-        scroll.getViewport().setBackground(Color.WHITE);
-        scroll.getVerticalScrollBar().setUnitIncrement(16);
-        add(scroll, BorderLayout.CENTER);
+        add(Theme.listScroll(rows), BorderLayout.CENTER);
 
         // ---- filter events ----
         search.getDocument().addDocumentListener(new DocumentListener() {
@@ -107,6 +97,12 @@ public class DonationsView extends JPanel {
     public JButton getAddButton() { return addButton; }
     public void setOnView(Consumer<Donation> onView) { this.onView = onView; }
     public void setOnApprove(Consumer<Donation> onApprove) { this.onApprove = onApprove; }
+
+    /** Which buttons the logged-in user may use. */
+    public void setPermissions(boolean canAdd, boolean canApprove) {
+        addButton.setVisible(canAdd);
+        this.canApprove = canApprove;
+    }
 
     public void setDonations(List<Donation> donations) {
         this.all = new ArrayList<>(donations);
@@ -168,12 +164,17 @@ public class DonationsView extends JPanel {
         food.add(Box.createHorizontalStrut(12));
         food.add(Theme.label(d.getFoodName(), 16, Font.BOLD, Color.BLACK));
 
+        // a deadline that has passed is shown in red (unless everything was already given out)
+        boolean late = d.isExpired() && !d.getStatus().equals(Donation.DISTRIBUTED);
+        JLabel deadline = cellLabel(d.getDeadlineText());
+        if (late) deadline.setForeground(Theme.STATUS_RED);
+
         row.add(food);
         row.add(cellLabel(d.getQuantityText()));
         row.add(cellLabel(d.getPickupLocation()));
-        row.add(cellLabel(d.getDeadlineText()));
-        row.add(new StatusPill(d.getStatus()));
-        row.add(new Kebab(k -> showMenu(d, k)));
+        row.add(deadline);
+        row.add(ColumnLayout.centered(new StatusPill(d.getStatus())));
+        row.add(ColumnLayout.centered(new Kebab(k -> showMenu(d, k))));
 
         row.addMouseListener(new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) { if (onView != null) onView.accept(d); }
@@ -192,7 +193,7 @@ public class DonationsView extends JPanel {
         JMenuItem view = new JMenuItem("View Details");
         view.addActionListener(e -> { if (onView != null) onView.accept(d); });
         menu.add(view);
-        if (d.getStatus().equals(Donation.PENDING)) {
+        if (canApprove && d.getStatus().equals(Donation.PENDING)) {
             JMenuItem approve = new JMenuItem("Approve");
             approve.addActionListener(e -> { if (onApprove != null) onApprove.accept(d); });
             menu.add(approve);
@@ -216,48 +217,6 @@ public class DonationsView extends JPanel {
             int cx = getWidth() / 2, cy = getHeight() / 2;
             for (int i = -1; i <= 1; i++) g2.fillOval(cx - 2, cy + i * 8 - 2, 5, 5);
             g2.dispose();
-        }
-    }
-
-    /** Splits the width by fixed percentages so the header and every row line up. */
-    private static class ColumnLayout implements LayoutManager {
-        private final double[] weights;
-        private final int fixedWidth;
-
-        ColumnLayout(double[] weights, int fixedWidth) {
-            this.weights = weights;
-            this.fixedWidth = fixedWidth;
-        }
-
-        @Override public void addLayoutComponent(String name, Component comp) { }
-        @Override public void removeLayoutComponent(Component comp) { }
-
-        @Override public Dimension preferredLayoutSize(Container parent) {
-            int h = 0;
-            for (Component c : parent.getComponents()) h = Math.max(h, c.getPreferredSize().height);
-            Insets in = parent.getInsets();
-            return new Dimension(600, h + in.top + in.bottom);
-        }
-
-        @Override public Dimension minimumLayoutSize(Container parent) { return preferredLayoutSize(parent); }
-
-        @Override public void layoutContainer(Container parent) {
-            Insets in = parent.getInsets();
-            int total = parent.getWidth() - in.left - in.right - fixedWidth;
-            int h = parent.getHeight() - in.top - in.bottom;
-            int x = in.left;
-            for (int i = 0; i < parent.getComponentCount(); i++) {
-                Component c = parent.getComponent(i);
-                int cw = (i < weights.length) ? (int) (total * weights[i]) : fixedWidth;
-                if (c instanceof StatusPill || c instanceof Kebab) {          // centered at their own size
-                    Dimension p = c.getPreferredSize();
-                    int w = Math.min(p.width, cw);
-                    c.setBounds(x + (cw - w) / 2, in.top + (h - p.height) / 2, w, p.height);
-                } else {
-                    c.setBounds(x, in.top, cw, h);
-                }
-                x += cw;
-            }
         }
     }
 }

@@ -7,10 +7,6 @@ import java.awt.*;
 
 /** Outlined, rounded status label (Available, Collected, Ongoing, Ready...) like in the mockups. */
 public class StatusPill extends JLabel {
-    private static final Color GREEN_PILL = new Color(0x1E8449);
-    private static final Color BLUE_PILL = new Color(0x2B7BBF);
-    private static final Color PURPLE_PILL = new Color(0x7B3FBF);
-    private static final Color ORANGE_PILL = new Color(0xE69500);
 
     public StatusPill(String status) {
         super(status, SwingConstants.CENTER);
@@ -26,12 +22,14 @@ public class StatusPill extends JLabel {
         repaint();
     }
 
+    /** The one place that decides which color means what. */
     public static Color colorFor(String status) {
         return switch (status) {
-            case Donation.AVAILABLE, Donation.COL_COMPLETED, "Ready" -> GREEN_PILL;
-            case Donation.COLLECTED, Donation.COL_ONGOING -> BLUE_PILL;
-            case Donation.DISTRIBUTED -> PURPLE_PILL;
-            default -> ORANGE_PILL;   // Pending
+            case Donation.AVAILABLE, Donation.COL_COMPLETED, "Ready" -> Theme.STATUS_GREEN;
+            case Donation.COLLECTED, Donation.COL_ONGOING -> Theme.STATUS_BLUE;
+            case Donation.DISTRIBUTED -> Theme.STATUS_VIOLET;
+            case "Expired" -> Theme.STATUS_RED;
+            default -> Theme.STATUS_AMBER;   // Pending, Urgent
         };
     }
 

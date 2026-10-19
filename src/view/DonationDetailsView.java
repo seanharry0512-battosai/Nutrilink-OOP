@@ -126,6 +126,12 @@ public class DonationDetailsView extends JPanel {
     public JButton getUpdateStatusButton() { return updateButton; }
     public Donation getCurrentDonation() { return current; }
 
+    /** Only coordinators and volunteers may assign volunteers or change the collection status. */
+    public void setManagerActions(boolean allowed) {
+        assignButton.setVisible(allowed);
+        updateButton.setVisible(allowed);
+    }
+
     public void showDonation(Donation d) {
         current = d;
         if (d == null) {

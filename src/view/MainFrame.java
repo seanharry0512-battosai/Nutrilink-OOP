@@ -18,8 +18,8 @@ public class MainFrame extends JFrame {
     public MainFrame() {
         super("NutriLink");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1150, 700);
-        setMinimumSize(new Dimension(1000, 660));
+        setSize(1200, 730);
+        setMinimumSize(new Dimension(1050, 680));
         setLocationRelativeTo(null);
         root.add(loginView, LOGIN);
         root.add(registerView, REGISTER);

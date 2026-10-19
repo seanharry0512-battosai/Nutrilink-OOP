@@ -33,7 +33,7 @@ public class CollectionView extends JPanel {
         setBorder(new EmptyBorder(22, 28, 22, 28));
 
         // ---- title + tab bar ----
-        JPanel tabBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 56, 12)) {
+        JPanel tabBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 40, 12)) {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -43,7 +43,7 @@ public class CollectionView extends JPanel {
             }
         };
         tabBar.setOpaque(false);
-        tabBar.setPreferredSize(new Dimension(700, 56));
+        tabBar.setPreferredSize(new Dimension(640, 56));
         for (int i = 0; i < TABS.length; i++) {
             final int index = i;
             JLabel l = Theme.label(TABS[i], 20, Font.BOLD, GRAY);
@@ -88,6 +88,7 @@ public class CollectionView extends JPanel {
         data.set(0, new ArrayList<>(pending));
         data.set(1, new ArrayList<>(ongoing));
         data.set(2, new ArrayList<>(completed));
+        for (int i = 0; i < TABS.length; i++) tabLabels[i].setText(TABS[i] + " (" + data.get(i).size() + ")");
         rebuild();
     }
 

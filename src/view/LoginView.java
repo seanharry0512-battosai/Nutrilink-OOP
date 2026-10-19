@@ -1,62 +1,92 @@
 package view;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
 
+/** Simple login screen used by the controller and main frame. */
 public class LoginView extends JPanel {
-    private final JTextField emailField = new Theme.HintField("youremail@gmail.com");
-    private final JPasswordField passwordField = new Theme.HintPassword("*********");
-    private final JCheckBox rememberBox = new JCheckBox("Remember me");
+    private final JTextField emailField = new Theme.HintField("Email");
+    private final JPasswordField passwordField = new Theme.HintPassword("Password");
+    private final JCheckBox rememberCheck = new JCheckBox("Remember me");
     private final JButton loginButton = Theme.primary("Login");
-    private final JLabel forgotLabel = Theme.link("Forgot Password?", Theme.LINK_BLUE);
-    private final JLabel registerLabel = Theme.link("Register", Theme.GREEN);
+    private final JLabel forgotLabel = Theme.link("Forgot password?", Theme.LINK_BLUE);
+    private final JLabel registerLabel = Theme.link("Create an account", Theme.LINK_BLUE);
 
     public LoginView() {
-        setLayout(new GridBagLayout());
-        setBackground(Color.WHITE);
+        setLayout(new BorderLayout());
+        setBackground(new Color(0xF5F7F5));
 
-        JPanel form = new JPanel(new GridBagLayout());
-        form.setOpaque(false);
-        form.setPreferredSize(new Dimension(380, 480));
+        JPanel center = new JPanel();
+        center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
+        center.setOpaque(false);
+        center.setBorder(new EmptyBorder(30, 0, 0, 0));
 
-        JLabel title = Theme.label("Welcome Back!", 32, Font.BOLD, Color.BLACK);
+        JPanel formCard = new JPanel();
+        formCard.setLayout(new GridBagLayout());
+        formCard.setOpaque(false);
+        formCard.setMaximumSize(new Dimension(420, 420));
+
+        GridBagConstraints c = new GridBagConstraints();
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.gridx = 0;
+        c.weightx = 1;
+        c.insets = new Insets(0, 0, 14, 0);
+
+        JLabel title = Theme.label("Welcome back", 34, Font.BOLD, Theme.DARK_GREEN);
         title.setHorizontalAlignment(SwingConstants.CENTER);
-        JLabel subtitle = Theme.label("Sign in to continue to your account", 14, Font.BOLD, Theme.MUTED);
+        c.gridy = 0;
+        formCard.add(title, c);
+
+        JLabel subtitle = Theme.label("Sign in to continue to NutriLink", 14, Font.PLAIN, Theme.TEXT_GRAY);
         subtitle.setHorizontalAlignment(SwingConstants.CENTER);
+        c.gridy = 1;
+        formCard.add(subtitle, c);
 
-        rememberBox.setOpaque(false);
-        rememberBox.setFont(Theme.font(Font.BOLD, 12));
-        JPanel options = new JPanel(new BorderLayout());
-        options.setOpaque(false);
-        options.add(rememberBox, BorderLayout.WEST);
-        options.add(forgotLabel, BorderLayout.EAST);
+        c.gridy = 2;
+        formCard.add(emailField, c);
+        c.gridy = 3;
+        formCard.add(passwordField, c);
 
-        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.CENTER, 4, 0));
-        bottom.setOpaque(false);
-        bottom.add(Theme.label("Don't have an account?", 14, Font.BOLD, Theme.MUTED));
-        bottom.add(registerLabel);
+        JPanel actions = new JPanel(new BorderLayout(12, 0));
+        actions.setOpaque(false);
+        actions.add(rememberCheck, BorderLayout.WEST);
+        actions.add(forgotLabel, BorderLayout.EAST);
+        c.gridy = 4;
+        formCard.add(actions, c);
 
-        int y = 0;
-        form.add(Theme.logo(34), Theme.row(y++, 0));
-        form.add(title, Theme.row(y++, 20));
-        form.add(subtitle, Theme.row(y++, 2));
-        form.add(Theme.fieldLabel("Email"), Theme.row(y++, 26));
-        form.add(emailField, Theme.row(y++, 5));
-        form.add(Theme.fieldLabel("Password"), Theme.row(y++, 14));
-        form.add(passwordField, Theme.row(y++, 5));
-        form.add(options, Theme.row(y++, 10));
-        form.add(loginButton, Theme.row(y++, 18));
-        form.add(bottom, Theme.row(y++, 16));
-        add(form);
+        loginButton.setAlignmentX(Component.CENTER_ALIGNMENT);
+        c.gridy = 5;
+        formCard.add(loginButton, c);
+
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        footer.setOpaque(false);
+        footer.add(Theme.label("Don’t have an account?", 13, Font.PLAIN, Theme.TEXT_GRAY));
+        footer.add(registerLabel);
+        c.gridy = 6;
+        formCard.add(footer, c);
+
+        center.add(Box.createVerticalGlue());
+        center.add(formCard);
+        center.add(Box.createVerticalGlue());
+        add(center, BorderLayout.CENTER);
     }
+
+    public JTextField getEmailField() { return emailField; }
+    public JPasswordField getPasswordField() { return passwordField; }
+    public JButton getLoginButton() { return loginButton; }
+    public JLabel getRegisterLabel() { return registerLabel; }
+    public JLabel getForgotLabel() { return forgotLabel; }
 
     public String getEmail() { return emailField.getText().trim(); }
     public String getPassword() { return new String(passwordField.getPassword()); }
-    public boolean isRememberSelected() { return rememberBox.isSelected(); }
-    public void setEmail(String email) { emailField.setText(email); rememberBox.setSelected(!email.isEmpty()); }
+    public boolean isRememberSelected() { return rememberCheck.isSelected(); }
+
+    public void setEmail(String email) { emailField.setText(email == null ? "" : email); }
     public void clearPassword() { passwordField.setText(""); }
-    public JButton getLoginButton() { return loginButton; }
-    public JPasswordField getPasswordField() { return passwordField; }
-    public JLabel getForgotLabel() { return forgotLabel; }
-    public JLabel getRegisterLabel() { return registerLabel; }
+    public void clear() {
+        emailField.setText("");
+        passwordField.setText("");
+        rememberCheck.setSelected(false);
+    }
 }
