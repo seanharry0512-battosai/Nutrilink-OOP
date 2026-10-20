@@ -62,6 +62,9 @@ public class Sidebar extends JPanel {
         avatar.setInitial(name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase());
     }
 
+    /** Shows the user's profile photo in the sidebar (null goes back to the letter). */
+    public void setAvatarImage(byte[] imageBytes) { avatar.setImageBytes(imageBytes); }
+
     /** Shows only the given pages (a donor, for example, does not see Inventory). */
     public void setVisiblePages(Set<String> pages) {
         for (Map.Entry<String, NavButton> e : buttons.entrySet()) e.getValue().setVisible(pages.contains(e.getKey()));
