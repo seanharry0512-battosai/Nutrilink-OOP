@@ -9,8 +9,7 @@ public class MainFrame extends JFrame {
     public static final String REGISTER = "register";
     public static final String APP = "app";
 
-    private final CardLayout cards = new CardLayout();
-    private final JPanel root = new JPanel(cards);
+    private final PageTransition root = new PageTransition();   // fades between Login, Register and the app
     private final LoginView loginView = new LoginView();
     private final RegisterView registerView = new RegisterView();
     private final DashboardView dashboardView = new DashboardView();
@@ -27,7 +26,7 @@ public class MainFrame extends JFrame {
         setContentPane(root);
     }
 
-    public void showScreen(String name) { cards.show(root, name); }
+    public void showScreen(String name) { root.showPage(name); }
     public LoginView getLoginView() { return loginView; }
     public RegisterView getRegisterView() { return registerView; }
     public DashboardView getDashboardView() { return dashboardView; }

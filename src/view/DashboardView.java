@@ -31,8 +31,7 @@ public class DashboardView extends JPanel {
     public static final String[] NAV_PAGES = {HOME, DONATIONS, INVENTORY, COLLECTION, DISTRIBUTION, BENEFICIARIES, REPORTS};
 
     private final Sidebar sidebar = new Sidebar();
-    private final CardLayout cards = new CardLayout();
-    private final JPanel content = new JPanel(cards);
+    private final PageTransition content = new PageTransition();   // switches pages with a fade
 
     // ---- home page ----
     private final JLabel welcomeLabel = Theme.label("Welcome!", 32, Font.BOLD, Color.BLACK);
@@ -185,7 +184,7 @@ public class DashboardView extends JPanel {
 
     // ---------- updating what is shown ----------
     public void showPage(String page) {
-        cards.show(content, page);
+        content.showPage(page);
         // Add Donation and the details page belong to the Donations menu item
         sidebar.setActive((page.equals(ADD) || page.equals(DETAILS)) ? DONATIONS : page);
     }
