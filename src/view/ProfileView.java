@@ -2,9 +2,15 @@ package view;
 
 import model.User;
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
 import java.util.List;
 
 /** Profile page: who you are, a little activity summary, edit your details and change your password. */
@@ -23,6 +29,11 @@ public class ProfileView extends JPanel {
         }
     };
     private final JPanel activity = new JPanel();
+
+    private final JButton changePhotoButton = Theme.primary("Change Photo");
+    private final JButton removePhotoButton = new JButton("Remove photo");
+    private User user;                  // the account being shown (set in setUser)
+    private Runnable onPhotoChanged;    // optional: the controller can save here
 
     private final JTextField nameField = new Theme.HintField("Full name");
     private final JTextField emailField = new Theme.HintField("Email");
@@ -48,10 +59,27 @@ public class ProfileView extends JPanel {
         activity.setLayout(new BoxLayout(activity, BoxLayout.Y_AXIS));
         activity.setOpaque(false);
 
+        // avatar + photo buttons
+        removePhotoButton.setFont(Theme.font(Font.PLAIN, 12));
+        removePhotoButton.setForeground(Theme.MUTED);
+        removePhotoButton.setBorderPainted(false);
+        removePhotoButton.setContentAreaFilled(false);
+        removePhotoButton.setFocusPainted(false);
+        removePhotoButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        changePhotoButton.addActionListener(e -> choosePhoto());
+        removePhotoButton.addActionListener(e -> removePhoto());
+        JPanel avatarBox = new JPanel(new GridBagLayout());
+        avatarBox.setOpaque(false);
+        GridBagConstraints a = new GridBagConstraints();
+        a.gridx = 0;
+        a.gridy = 0; avatarBox.add(avatar, a);
+        a.gridy = 1; a.insets = new Insets(12, 0, 0, 0); avatarBox.add(changePhotoButton, a);
+        a.gridy = 2; a.insets = new Insets(2, 0, 0, 0); avatarBox.add(removePhotoButton, a);
+
         JPanel summary = Theme.card(new GridBagLayout());
         GridBagConstraints c = new GridBagConstraints();
         c.gridx = 0; c.weightx = 1; c.fill = GridBagConstraints.NONE; c.anchor = GridBagConstraints.CENTER;
-        c.gridy = 0; c.insets = new Insets(8, 0, 0, 0); summary.add(avatar, c);
+        c.gridy = 0; c.insets = new Insets(8, 0, 0, 0); summary.add(avatarBox, c);
         c.gridy = 1; c.insets = new Insets(12, 0, 0, 0); summary.add(nameLabel, c);
         c.gridy = 2; c.insets = new Insets(4, 0, 0, 0); summary.add(emailLabel, c);
         c.gridy = 3; c.insets = new Insets(10, 0, 0, 0); summary.add(roleLabel, c);
@@ -116,7 +144,10 @@ public class ProfileView extends JPanel {
 
     // ---------------- API for the controller ----------------
     public void setUser(User u, List<String[]> activityRows) {
+        this.user = u;
         avatar.setInitial(u.getInitial());
+        avatar.setImageBytes(u.getAvatarImage());
+        removePhotoButton.setVisible(u.getAvatarImage() != null);
         nameLabel.setText(u.getFullName());
         emailLabel.setText(u.getEmail());
         roleLabel.setText(u.getRole());
@@ -142,6 +173,61 @@ public class ProfileView extends JPanel {
         }
         activity.revalidate();
         activity.repaint();
+    }
+
+    // ---------------- profile photo ----------------
+    /** Optional: called after the photo is changed or removed, so the controller can save the account. */
+    public void setOnPhotoChanged(Runnable onPhotoChanged) { this.onPhotoChanged = onPhotoChanged; }
+
+    private void choosePhoto() {
+        if (user == null) return;
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Choose a profile photo");
+        chooser.setAcceptAllFileFilterUsed(false);
+        chooser.addChoosableFileFilter(new FileNameExtensionFilter("Images (PNG, JPG, GIF)", "png", "jpg", "jpeg", "gif"));
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
+
+        File file = chooser.getSelectedFile();
+        if (file.length() > 10L * 1024 * 1024) {
+            JOptionPane.showMessageDialog(this, "That image is too large. Please choose one under 10 MB.", "Profile photo", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        try {
+            BufferedImage source = ImageIO.read(file);
+            if (source == null) {
+                JOptionPane.showMessageDialog(this, "That file is not a valid image. Please choose a PNG, JPG or GIF.", "Profile photo", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            applyPhoto(toAvatarPng(source));
+        } catch (IOException ex) {
+            JOptionPane.showMessageDialog(this, "The image could not be read. Please try another file.", "Profile photo", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void removePhoto() {
+        if (user != null) applyPhoto(null);
+    }
+
+    private void applyPhoto(byte[] png) {
+        user.setAvatarImage(png);
+        avatar.setImageBytes(png);
+        removePhotoButton.setVisible(png != null);
+        if (onPhotoChanged != null) onPhotoChanged.run();
+    }
+
+    /** Center-crops to a square and shrinks to at most 256x256 so the saved account stays small. */
+    private static byte[] toAvatarPng(BufferedImage source) throws IOException {
+        int side = Math.min(source.getWidth(), source.getHeight());
+        BufferedImage square = source.getSubimage((source.getWidth() - side) / 2, (source.getHeight() - side) / 2, side, side);
+        int target = Math.min(256, side);
+        Image scaled = square.getScaledInstance(target, target, Image.SCALE_SMOOTH);
+        BufferedImage out = new BufferedImage(target, target, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = out.createGraphics();
+        g.drawImage(scaled, 0, 0, null);
+        g.dispose();
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        ImageIO.write(out, "png", bytes);
+        return bytes.toByteArray();
     }
 
     public void clearPasswordFields() {

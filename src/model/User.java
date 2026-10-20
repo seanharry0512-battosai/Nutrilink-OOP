@@ -20,6 +20,7 @@ public abstract class User implements Serializable {
     private final String salt;
     private String passwordHash;
     private final UserSettings settings = new UserSettings();
+    private byte[] avatarImage;   // profile photo as PNG bytes; null = show the initial
 
     public User(String fullName, String email, String contactNumber, String password) {
         this.fullName = fullName;
@@ -42,6 +43,8 @@ public abstract class User implements Serializable {
     public String getContactNumber() { return contactNumber; }
     public void setContactNumber(String contactNumber) { this.contactNumber = contactNumber; }
     public UserSettings getSettings() { return settings; }
+    public byte[] getAvatarImage() { return avatarImage; }
+    public void setAvatarImage(byte[] avatarImage) { this.avatarImage = avatarImage; }
 
     // ---- password: only a salted hash is stored (Topic 1.7 Encapsulation) ----
     private String hash(String password) {
