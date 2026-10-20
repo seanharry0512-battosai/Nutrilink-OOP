@@ -8,9 +8,30 @@ import java.util.Set;
 public class Beneficiary extends User {
     private static final long serialVersionUID = 2L;
 
+    public static final String[] TYPES = {"Individual", "Family", "Organization"};
+
+    public static boolean needsOrganization(String type) { return "Organization".equals(type); }
+    /** Individuals and families tell us their household size; organizations do not. */
+    public static boolean needsHousehold(String type) { return !needsOrganization(type); }
+
+    // sign-up details (empty in accounts saved before these existed)
+    private String beneficiaryType;
+    private int householdSize;
+    private String organizationName;
+    private String deliveryLocation;
+
     public Beneficiary(String fullName, String email, String contactNumber, String password) {
         super(fullName, email, contactNumber, password);
     }
+
+    public String getBeneficiaryType() { return beneficiaryType == null ? "" : beneficiaryType; }
+    public void setBeneficiaryType(String beneficiaryType) { this.beneficiaryType = beneficiaryType; }
+    public int getHouseholdSize() { return householdSize; }
+    public void setHouseholdSize(int householdSize) { this.householdSize = householdSize; }
+    public String getOrganizationName() { return organizationName == null ? "" : organizationName; }
+    public void setOrganizationName(String organizationName) { this.organizationName = organizationName; }
+    public String getDeliveryLocation() { return deliveryLocation == null ? "" : deliveryLocation; }
+    public void setDeliveryLocation(String deliveryLocation) { this.deliveryLocation = deliveryLocation; }
 
     @Override public String getRole() { return "Beneficiary"; }
     @Override public boolean canViewInventory() { return true; }

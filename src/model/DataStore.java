@@ -265,7 +265,8 @@ public class DataStore implements Serializable {
     public String changePassword(User u, String current, String next, String confirm) {
         if (current.isEmpty() || next.isEmpty() || confirm.isEmpty()) return "Please fill in all password fields.";
         if (!u.checkPassword(current)) return "Your current password is not correct.";
-        if (next.length() < 6) return "The new password must be at least 6 characters.";
+        String weak = PasswordRules.problem(next);
+        if (weak != null) return weak;
         if (!next.equals(confirm)) return "The new passwords do not match.";
         if (next.equals(current)) return "The new password must be different from the current one.";
         u.changePassword(current, next);
