@@ -510,22 +510,86 @@ public class AppController {
             }
             if (!DataStore.EMAIL.matcher(email).matches()) { error("Please enter a valid email address."); return; }
             if (!DataStore.CONTACT.matcher(contact).matches()) { error("Contact number must be 11 digits (e.g. 09171234567)."); return; }
-            if (password.length() < 6) { error("Password must be at least 6 characters."); return; }
+            String weak = PasswordRules.problem(password);
+            if (weak != null) { error(weak); return; }
             if (!password.equals(registerView.getConfirm())) { error("Passwords do not match."); return; }
             if (store.findUserByEmail(email) != null) { error("An account with that email already exists."); return; }
 
-            User user;
-            switch (registerView.getSelectedRole()) {
-                case "Coordinator": user = new Coordinator(name, email, contact, password); break;
-                case "Volunteer": user = new Volunteer(name, email, contact, password); break;
-                case "Beneficiary": user = new Beneficiary(name, email, contact, password); break;
-                default: user = new Donor(name, email, contact, password);
-            }
+            User user = buildUser(name, email, contact, password);
+            if (user == null) return;          // a role-specific field is missing; the message was already shown
             store.addUser(user);
             info("Account created", "Welcome to NutriLink, " + user.getFirstName() + "! You can now log in.");
             loginView.setEmail(email);
             registerView.clear();
             frame.showScreen(MainFrame.LOGIN);
+        }
+
+        /** Creates the account for the chosen role with its own details, or shows a message and returns null. */
+        private User buildUser(String name, String email, String contact, String password) {
+            switch (registerView.getSelectedRole()) {
+                case "Coordinator": {
+                    String org = registerView.getCoordinatorOrganization();
+                    String position = registerView.getCoordinatorPosition();
+                    String area = registerView.getCoordinatorArea();
+                    if (org.isEmpty() || position.isEmpty() || area.isEmpty()) {
+                        error("Coordinators must enter their organization, position and assigned area."); return null;
+                    }
+                    Coordinator c = new Coordinator(name, email, contact, password);
+                    c.setOrganizationName(org);
+                    c.setPosition(position);
+                    c.setAssignedArea(area);
+                    return c;
+                }
+                case "Volunteer": {
+                    String area = registerView.getVolunteerArea();
+                    String availability = registerView.getVolunteerAvailability();
+                    if (area.isEmpty() || availability.isEmpty()) {
+                        error("Volunteers must enter their service area and availability."); return null;
+                    }
+                    Volunteer v = new Volunteer(name, email, contact, password);
+                    v.setServiceArea(area);
+                    v.setActivityPreference(registerView.getVolunteerActivity());
+                    v.setAvailability(availability);
+                    return v;
+                }
+                case "Beneficiary": {
+                    String type = registerView.getBeneficiaryType();
+                    String location = registerView.getBeneficiaryLocation();
+                    if (location.isEmpty()) { error("Please enter your delivery or collection address."); return null; }
+                    Beneficiary b = new Beneficiary(name, email, contact, password);
+                    b.setBeneficiaryType(type);
+                    b.setDeliveryLocation(location);
+                    if (Beneficiary.needsOrganization(type)) {
+                        String org = registerView.getBeneficiaryOrganization();
+                        if (org.isEmpty()) { error("Please enter your organization name."); return null; }
+                        b.setOrganizationName(org);
+                    } else {
+                        int size;
+                        try {
+                            size = Integer.parseInt(registerView.getHouseholdSize());
+                        } catch (NumberFormatException ex) {
+                            error("Household size must be a whole number."); return null;
+                        }
+                        if (size < 1 || size > 99) { error("Household size must be between 1 and 99."); return null; }
+                        b.setHouseholdSize(size);
+                    }
+                    return b;
+                }
+                default: {
+                    String type = registerView.getDonorType();
+                    String pickup = registerView.getDonorPickup();
+                    if (pickup.isEmpty()) { error("Please enter your pickup location."); return null; }
+                    Donor d = new Donor(name, email, contact, password);
+                    d.setDonorType(type);
+                    d.setPickupLocation(pickup);
+                    if (Donor.needsOrganization(type)) {
+                        String org = registerView.getDonorOrganization();
+                        if (org.isEmpty()) { error("Please enter your business or organization name."); return null; }
+                        d.setOrganizationName(org);
+                    }
+                    return d;
+                }
+            }
         }
     }
 
