@@ -1,16 +1,6 @@
 package model;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.Serializable;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -21,8 +11,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * Keeps all data and saves it to a file, so nothing is lost when the program is closed.
- * The file is  <your home folder>/.nutrilink/nutrilink-data.ser  (delete it to start fresh).
+ * Keeps all of NutriLink's data in memory only. Nothing is written to disk: when the program is closed,
+ * everything is gone, and the next run starts again with the demo accounts and donations.
  */
 public class DataStore implements Serializable {
     private static final long serialVersionUID = 2L;
@@ -43,58 +33,21 @@ public class DataStore implements Serializable {
     private String rememberedEmail = "";
 
     private transient User currentUser;     // the session is not saved
-    private transient Path file;            // where this store is saved
 
     private DataStore() { }
 
     // =====================================================================
     //  loading and saving
     // =====================================================================
-    private static Path dataFile() {
-        String custom = System.getProperty("nutrilink.data");
-        if (custom != null && !custom.isBlank()) return Paths.get(custom);
-        return Paths.get(System.getProperty("user.home"), ".nutrilink", "nutrilink-data.ser");
-    }
-
-    /** Loads the saved data, or creates the demo data the first time (or if the file is unreadable). */
+    /** Creates a fresh in-memory store filled with the demo accounts and donations. Nothing is read from disk. */
     public static DataStore load() {
-        Path f = dataFile();
-        if (Files.isRegularFile(f)) {
-            try (ObjectInputStream in = new ObjectInputStream(new BufferedInputStream(Files.newInputStream(f)))) {
-                DataStore s = (DataStore) in.readObject();
-                s.file = f;
-                return s;
-            } catch (Exception e) {
-                System.err.println("Could not read the saved data (" + e + "). Starting with demo data.");
-                try {
-                    Files.move(f, f.resolveSibling(f.getFileName() + ".bad"), StandardCopyOption.REPLACE_EXISTING);
-                } catch (IOException ignored) { }
-            }
-        }
         DataStore s = new DataStore();
-        s.file = f;
         s.seedDemoData();
-        s.save();
         return s;
     }
 
-    public void save() {
-        if (file == null) return;
-        try {
-            Files.createDirectories(file.getParent());
-            Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-            try (ObjectOutputStream out = new ObjectOutputStream(new BufferedOutputStream(Files.newOutputStream(tmp)))) {
-                out.writeObject(this);
-            }
-            try {
-                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException e) {
-                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
-            }
-        } catch (IOException e) {
-            System.err.println("Could not save the data: " + e.getMessage());
-        }
-    }
+    /** Kept so the rest of the program can still call it; the data lives in memory only, so there is nothing to save. */
+    public void save() { }
 
     /** Throws everything away and starts again with the demo accounts and donations. */
     public void resetToDemoData() {
@@ -107,7 +60,6 @@ public class DataStore implements Serializable {
         rememberedEmail = "";
         currentUser = null;
         seedDemoData();
-        save();
     }
 
     // =====================================================================
