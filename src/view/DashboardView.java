@@ -25,14 +25,14 @@ public class DashboardView extends JPanel {
     public static final String NOTIFICATIONS = "Notifications";
     public static final String SETTINGS = "Settings";
     public static final String PROFILE = "Profile";
+    public static final String ABOUT = "About";
     public static final String ADD = "AddDonation";
     public static final String DETAILS = "DonationDetails";
     /** The pages in the main part of the sidebar. */
     public static final String[] NAV_PAGES = {HOME, DONATIONS, INVENTORY, COLLECTION, DISTRIBUTION, BENEFICIARIES, REPORTS};
 
     private final Sidebar sidebar = new Sidebar();
-    private final CardLayout cards = new CardLayout();
-    private final JPanel content = new JPanel(cards);
+    private final PageTransition content = new PageTransition();   // switches pages with a fade
 
     // ---- home page ----
     private final JLabel welcomeLabel = Theme.label("Welcome!", 32, Font.BOLD, Color.BLACK);
@@ -64,6 +64,7 @@ public class DashboardView extends JPanel {
     private final NotificationsView notificationsView = new NotificationsView();
     private final SettingsView settingsView = new SettingsView();
     private final ProfileView profileView = new ProfileView();
+    private final AboutView aboutView = new AboutView();
 
     public DashboardView() {
         setLayout(new BorderLayout());
@@ -82,7 +83,12 @@ public class DashboardView extends JPanel {
         content.add(notificationsView, NOTIFICATIONS);
         content.add(settingsView, SETTINGS);
         content.add(profileView, PROFILE);
+        content.add(aboutView, ABOUT);
         add(content, BorderLayout.CENTER);
+        // the sidebar's "About Us" row opens the About page by itself (no controller code needed)
+        sidebar.getAboutItem().addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) { showPage(ABOUT); }
+        });
         showPage(HOME);
     }
 
@@ -185,7 +191,7 @@ public class DashboardView extends JPanel {
 
     // ---------- updating what is shown ----------
     public void showPage(String page) {
-        cards.show(content, page);
+        content.showPage(page);
         // Add Donation and the details page belong to the Donations menu item
         sidebar.setActive((page.equals(ADD) || page.equals(DETAILS)) ? DONATIONS : page);
     }

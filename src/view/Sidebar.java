@@ -19,6 +19,7 @@ public class Sidebar extends JPanel {
     private final JLabel nameLabel = Theme.label("", 14, Font.BOLD, Color.WHITE);
     private final JLabel roleLabel = Theme.label("", 12, Font.PLAIN, new Color(0xCFE8D8));
     private final ProfileChip profileChip = new ProfileChip();
+    private final AboutItem aboutItem = new AboutItem();
 
     public Sidebar() {
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
@@ -41,6 +42,7 @@ public class Sidebar extends JPanel {
         add(Box.createVerticalGlue());
         addButton(DashboardView.NOTIFICATIONS);
         addButton(DashboardView.SETTINGS);
+        add(aboutItem);
         add(profileChip);
         add(logoutButton);
     }
@@ -55,6 +57,7 @@ public class Sidebar extends JPanel {
     public NavButton getButton(String page) { return buttons.get(page); }
     public NavButton getLogoutButton() { return logoutButton; }
     public JComponent getProfileChip() { return profileChip; }
+    public JComponent getAboutItem() { return aboutItem; }
 
     public void setUser(String name, String role) {
         nameLabel.setText(name);
@@ -75,9 +78,53 @@ public class Sidebar extends JPanel {
     public void setActive(String page) {
         for (Map.Entry<String, NavButton> e : buttons.entrySet()) e.getValue().setActive(e.getKey().equals(page));
         profileChip.setActive(DashboardView.PROFILE.equals(page));
+        aboutItem.setActive(DashboardView.ABOUT.equals(page));
     }
 
     public void setUnread(int count) { buttons.get(DashboardView.NOTIFICATIONS).setBadge(count); }
+
+    /** "About Us" menu row: an info icon and text, drawn like the other menu items. Clicking it opens the About page. */
+    private class AboutItem extends JComponent {
+        private boolean active;
+        private boolean hover;
+
+        AboutItem() {
+            setPreferredSize(new Dimension(250, 44));
+            setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+            setAlignmentX(Component.LEFT_ALIGNMENT);
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            setToolTipText("About NutriLink");
+            addMouseListener(new MouseAdapter() {
+                @Override public void mouseEntered(MouseEvent e) { hover = true; repaint(); }
+                @Override public void mouseExited(MouseEvent e) { hover = false; repaint(); }
+            });
+        }
+
+        void setActive(boolean active) {
+            this.active = active;
+            repaint();
+        }
+
+        @Override protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            if (active || hover) {
+                g2.setColor(active ? Theme.DARK_GREEN : new Color(0x23925A));
+                g2.fillRect(0, 0, getWidth(), getHeight());
+            }
+            int cy = getHeight() / 2;
+            g2.setColor(Color.WHITE);
+            g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.drawOval(20, cy - 11, 22, 22);              // circle
+            g2.fillOval(30, cy - 7, 3, 3);                 // dot of the "i"
+            g2.drawLine(31, cy - 2, 31, cy + 6);           // stem of the "i"
+            g2.setFont(Theme.font(Font.PLAIN, 15));
+            FontMetrics fm = g2.getFontMetrics();
+            g2.drawString("About Us", 56, (getHeight() - fm.getHeight()) / 2 + fm.getAscent());
+            g2.dispose();
+        }
+    }
 
     /** Avatar + name + role. Clicking it opens the Profile page. */
     private class ProfileChip extends JPanel {
