@@ -25,6 +25,7 @@ public class DashboardView extends JPanel {
     public static final String NOTIFICATIONS = "Notifications";
     public static final String SETTINGS = "Settings";
     public static final String PROFILE = "Profile";
+    public static final String ABOUT = "About";
     public static final String ADD = "AddDonation";
     public static final String DETAILS = "DonationDetails";
     /** The pages in the main part of the sidebar. */
@@ -63,6 +64,7 @@ public class DashboardView extends JPanel {
     private final NotificationsView notificationsView = new NotificationsView();
     private final SettingsView settingsView = new SettingsView();
     private final ProfileView profileView = new ProfileView();
+    private final AboutView aboutView = new AboutView();
 
     public DashboardView() {
         setLayout(new BorderLayout());
@@ -81,7 +83,12 @@ public class DashboardView extends JPanel {
         content.add(notificationsView, NOTIFICATIONS);
         content.add(settingsView, SETTINGS);
         content.add(profileView, PROFILE);
+        content.add(aboutView, ABOUT);
         add(content, BorderLayout.CENTER);
+        // the sidebar's "About Us" row opens the About page by itself (no controller code needed)
+        sidebar.getAboutItem().addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) { showPage(ABOUT); }
+        });
         showPage(HOME);
     }
 
