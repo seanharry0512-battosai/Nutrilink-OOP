@@ -128,11 +128,12 @@ public class AppController {
         donationsView.setOnApprove(this::approveDonation);
     }
 
-    /** Donation details page: Back link, Assign Volunteer, Update Status. */
+    /** Donation details page: Back link, Approve, Assign Volunteer, Update Status. */
     private void wireDetails() {
         detailsView.getBackLabel().addMouseListener(new LinkClick(() -> goTo(DashboardView.DONATIONS)));
         detailsView.getAssignButton().addActionListener(e -> assignVolunteer(detailsView.getCurrentDonation()));
         detailsView.getUpdateStatusButton().addActionListener(e -> chooseCollectionStatus(detailsView.getCurrentDonation()));
+        detailsView.getApproveButton().addActionListener(e -> approveDonation(detailsView.getCurrentDonation()));
     }
 
     /** Collection page: View, Assign Volunteer, Mark Completed. */
@@ -460,6 +461,7 @@ public class AppController {
         distributionView.setAvailableFood(store.getDonationsReadyToDistribute());
         distributionView.setBeneficiaries(beneficiaries);
         detailsView.setManagerActions(user.canManageCollection());
+        detailsView.setCanApprove(user.canApproveDonation());
         if (detailsView.getCurrentDonation() != null) detailsView.showDonation(detailsView.getCurrentDonation());
 
         notificationsView.setNotifications(store.getNotificationsFor(user));

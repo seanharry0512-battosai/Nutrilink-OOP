@@ -28,8 +28,10 @@ public class DonationDetailsView extends JPanel {
 
     private final OutlineButton assignButton = new OutlineButton("Assign Volunteer", Theme.GREEN, Theme.GREEN, Color.WHITE);
     private final JButton updateButton = Theme.primary("Update Status");
+    private final JButton approveButton = Theme.primary("Approve Donation");
 
     private Donation current;
+    private boolean canApprove;   // set by the controller from the logged-in user's role
 
     public DonationDetailsView() {
         setLayout(new BorderLayout(0, 16));
@@ -97,8 +99,10 @@ public class DonationDetailsView extends JPanel {
         // buttons
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.CENTER, 16, 0));
         buttons.setOpaque(false);
+        buttons.add(approveButton);
         buttons.add(assignButton);
         buttons.add(updateButton);
+        approveButton.setVisible(false);
 
         JPanel content = new JPanel(new GridBagLayout());
         content.setOpaque(false);
@@ -124,12 +128,23 @@ public class DonationDetailsView extends JPanel {
     public JLabel getBackLabel() { return backLabel; }
     public JButton getAssignButton() { return assignButton; }
     public JButton getUpdateStatusButton() { return updateButton; }
+    public JButton getApproveButton() { return approveButton; }
     public Donation getCurrentDonation() { return current; }
 
     /** Only coordinators and volunteers may assign volunteers or change the collection status. */
     public void setManagerActions(boolean allowed) {
         assignButton.setVisible(allowed);
         updateButton.setVisible(allowed);
+    }
+
+    /** Only users who may approve donations (coordinators) get the Approve button. */
+    public void setCanApprove(boolean allowed) {
+        canApprove = allowed;
+        updateApproveButton();
+    }
+
+    private void updateApproveButton() {
+        approveButton.setVisible(canApprove && current != null && Donation.PENDING.equals(current.getStatus()));
     }
 
     public void showDonation(Donation d) {
@@ -160,6 +175,8 @@ public class DonationDetailsView extends JPanel {
         assignButton.setEnabled(!Donation.COL_COMPLETED.equals(d.getCollectionStatus()));
         updateButton.setEnabled(!Donation.DISTRIBUTED.equals(d.getStatus()));
 
+        updateApproveButton();
+
         imageHolder.revalidate();
         imageHolder.repaint();
         revalidate();
@@ -185,6 +202,7 @@ public class DonationDetailsView extends JPanel {
         collectionPill.setStatus(Donation.COL_PENDING);
         assignButton.setEnabled(false);
         updateButton.setEnabled(false);
+        approveButton.setVisible(false);
     }
 
     // ---------------- helpers ----------------

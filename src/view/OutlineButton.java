@@ -8,13 +8,11 @@ import java.awt.*;
 /** A compact outlined button styled for list and action rows. */
 public class OutlineButton extends JButton {
     private final Color borderColor;
-    private final Color textColor;
     private final Color hoverFill;
 
     public OutlineButton(String text, Color borderColor, Color textColor, Color hoverFill) {
         super(text);
         this.borderColor = borderColor;
-        this.textColor = textColor;
         this.hoverFill = hoverFill;
         setForeground(textColor);
         setFont(Theme.font(Font.BOLD, 13));
