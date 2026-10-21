@@ -529,7 +529,7 @@ public class AppController {
         /** Creates the account for the chosen role with its own details, or shows a message and returns null. */
         private User buildUser(String name, String email, String contact, String password) {
             switch (registerView.getSelectedRole()) {
-                case "Coordinator": {
+                case "Coordinator" -> {
                     String org = registerView.getCoordinatorOrganization();
                     String position = registerView.getCoordinatorPosition();
                     String area = registerView.getCoordinatorArea();
@@ -542,7 +542,7 @@ public class AppController {
                     c.setAssignedArea(area);
                     return c;
                 }
-                case "Volunteer": {
+                case "Volunteer" -> {
                     String area = registerView.getVolunteerArea();
                     String availability = registerView.getVolunteerAvailability();
                     if (area.isEmpty() || availability.isEmpty()) {
@@ -554,7 +554,7 @@ public class AppController {
                     v.setAvailability(availability);
                     return v;
                 }
-                case "Beneficiary": {
+                case "Beneficiary" -> {
                     String type = registerView.getBeneficiaryType();
                     String location = registerView.getBeneficiaryLocation();
                     if (location.isEmpty()) { error("Please enter your delivery or collection address."); return null; }
@@ -577,7 +577,7 @@ public class AppController {
                     }
                     return b;
                 }
-                default: {
+                default -> {
                     String type = registerView.getDonorType();
                     String pickup = registerView.getDonorPickup();
                     if (pickup.isEmpty()) { error("Please enter your pickup location."); return null; }
