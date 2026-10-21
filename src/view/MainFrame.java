@@ -24,6 +24,7 @@ public class MainFrame extends JFrame {
         root.add(registerView, REGISTER);
         root.add(dashboardView, APP);
         setContentPane(root);
+        root.showPage(LOGIN);
     }
 
     public void showScreen(String name) { root.showPage(name); }
