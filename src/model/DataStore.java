@@ -5,14 +5,20 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * Keeps all of NutriLink's data in memory only. Nothing is written to disk: when the program is closed,
- * everything is gone, and the next run starts again with the demo accounts and donations.
+ * Keeps all of NutriLink's data. The data is stored in an in-memory H2 SQL database (see Database): nothing is
+ * written to disk, so when the program is closed everything is gone and the next run starts again with the demo
+ * accounts and donations.
+ *
+ * The objects (users, donations...) are kept here for the screens to use, and every change is written to the
+ * database tables by save(). Searches and counts are answered by SQL queries.
  */
 public class DataStore implements Serializable {
     private static final long serialVersionUID = 2L;
@@ -33,21 +39,25 @@ public class DataStore implements Serializable {
     private String rememberedEmail = "";
 
     private transient User currentUser;     // the session is not saved
+    private transient Database db;          // the in-memory SQL database
 
     private DataStore() { }
 
     // =====================================================================
     //  loading and saving
     // =====================================================================
-    /** Creates a fresh in-memory store filled with the demo accounts and donations. Nothing is read from disk. */
+    /** Starts the in-memory database and fills it with the demo accounts and donations. Nothing is read from disk. */
     public static DataStore load() {
         DataStore s = new DataStore();
+        s.db = new Database();
         s.seedDemoData();
         return s;
     }
 
-    /** Kept so the rest of the program can still call it; the data lives in memory only, so there is nothing to save. */
-    public void save() { }
+    /** Writes every change into the database tables. Called after each change. */
+    public void save() {
+        db.sync(users, donations, distributions, notifications);
+    }
 
     /** Throws everything away and starts again with the demo accounts and donations. */
     public void resetToDemoData() {
@@ -59,6 +69,7 @@ public class DataStore implements Serializable {
         nextUserId = nextDonationId = nextDistributionId = nextNotificationId = 1;
         rememberedEmail = "";
         currentUser = null;
+        db.clearAll();
         seedDemoData();
     }
 
@@ -160,10 +171,8 @@ public class DataStore implements Serializable {
 
     public User findUserByEmail(String email) {
         if (email == null) return null;
-        for (User u : users) {
-            if (u.getEmail().equalsIgnoreCase(email.trim())) return u;
-        }
-        return null;
+        Integer id = db.findUserIdByEmail(email);
+        return id == null ? null : findUserById(id);
     }
 
     public User findUserById(int id) {
@@ -234,11 +243,7 @@ public class DataStore implements Serializable {
     /** Donors see only their own donations; everyone else sees all of them. */
     public List<Donation> getDonationsVisibleTo(User u) {
         if (u.seesAllDonations()) return new ArrayList<>(donations);
-        List<Donation> result = new ArrayList<>();
-        for (Donation d : donations) {
-            if (d.getDonorId() == u.getId()) result.add(d);
-        }
-        return result;
+        return donationsFromIds(db.donationIdsByDonor(u.getId()));
     }
 
     public Donation createDonation(User donor, String foodName, String type, double qty, String unit, String pickup,
@@ -267,16 +272,22 @@ public class DataStore implements Serializable {
     }
 
     public List<Donation> getDonationsByStatus(String... statuses) {
+        return donationsFromIds(db.donationIdsByStatus(statuses));
+    }
+
+    public int countByStatus(String... statuses) { return db.countDonationsByStatus(statuses); }
+
+    /** Turns ids returned by a SQL query into the matching donation objects (same order as the ids). */
+    private List<Donation> donationsFromIds(List<Integer> ids) {
+        Map<Integer, Donation> byId = new HashMap<>();
+        for (Donation d : donations) byId.put(d.getId(), d);
         List<Donation> result = new ArrayList<>();
-        for (Donation d : donations) {
-            for (String s : statuses) {
-                if (d.getStatus().equals(s)) { result.add(d); break; }
-            }
+        for (int id : ids) {
+            Donation d = byId.get(id);
+            if (d != null) result.add(d);
         }
         return result;
     }
-
-    public int countByStatus(String... statuses) { return getDonationsByStatus(statuses).size(); }
 
     /** Approves a Pending donation. Returns an error message, or null if OK. */
     public String approveDonation(Donation d) {
@@ -306,18 +317,7 @@ public class DataStore implements Serializable {
      * Pending tab = approved (Available) donations that still need a volunteer.
      */
     public List<Donation> getDonationsByCollectionStatus(String collectionStatus) {
-        List<Donation> result = new ArrayList<>();
-        for (Donation d : donations) {
-            boolean match;
-            if (collectionStatus.equals(Donation.COL_PENDING)) {
-                match = d.getStatus().equals(Donation.AVAILABLE)
-                        && d.getCollectionStatus().equals(Donation.COL_PENDING);
-            } else {
-                match = d.getCollectionStatus().equals(collectionStatus);
-            }
-            if (match) result.add(d);
-        }
-        return result;
+        return donationsFromIds(db.donationIdsByCollectionStatus(collectionStatus));
     }
 
     /** Assigns a volunteer and moves the collection to Ongoing. Returns an error message, or null if OK. */
@@ -384,24 +384,19 @@ public class DataStore implements Serializable {
 
     public List<Distribution> getDistributionsVisibleTo(User u) {
         if (u.seesAllDonations()) return new ArrayList<>(distributions);
-        Set<Integer> ids = new HashSet<>();
-        for (Donation d : getDonationsVisibleTo(u)) ids.add(d.getId());
+        Map<Integer, Distribution> byId = new HashMap<>();
+        for (Distribution x : distributions) byId.put(x.getId(), x);
         List<Distribution> result = new ArrayList<>();
-        for (Distribution x : distributions) {
-            if (ids.contains(x.getDonationId())) result.add(x);
+        for (int id : db.distributionIdsForDonor(u.getId())) {
+            Distribution x = byId.get(id);
+            if (x != null) result.add(x);
         }
         return result;
     }
 
     /** Collected donations that still have food left to give out (expired food is left out). */
     public List<Donation> getDonationsReadyToDistribute() {
-        List<Donation> result = new ArrayList<>();
-        for (Donation d : donations) {
-            if (d.getStatus().equals(Donation.COLLECTED) && d.getRemainingQuantity() > 0 && !d.isExpired()) {
-                result.add(d);
-            }
-        }
-        return result;
+        return donationsFromIds(db.donationIdsReadyToDistribute(LocalDate.now()));
     }
 
     /** Records food given to a beneficiary. Returns an error message, or null if OK. */
@@ -442,21 +437,17 @@ public class DataStore implements Serializable {
     // =====================================================================
     /** Newest first. */
     public List<Notification> getNotificationsFor(User u) {
+        Map<Integer, Notification> byId = new HashMap<>();
+        for (Notification n : notifications) byId.put(n.getId(), n);
         List<Notification> result = new ArrayList<>();
-        for (Notification n : notifications) {
-            if (n.getRecipientId() == u.getId()) result.add(n);
+        for (int id : db.notificationIdsFor(u.getId())) {
+            Notification n = byId.get(id);
+            if (n != null) result.add(n);
         }
-        result.sort(Comparator.comparing(Notification::getCreatedAt).thenComparingInt(Notification::getId).reversed());
         return result;
     }
 
-    public int countUnread(User u) {
-        int count = 0;
-        for (Notification n : notifications) {
-            if (n.getRecipientId() == u.getId() && !n.isRead()) count++;
-        }
-        return count;
-    }
+    public int countUnread(User u) { return db.countUnreadNotifications(u.getId()); }
 
     public void markRead(Notification n) {
         if (n != null && !n.isRead()) {
